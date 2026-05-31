@@ -1,0 +1,8 @@
+{
+  "original": "/home/roman/Study/digital_image_processing_sem10/images/lab01/input/bnw.png",
+  "distorted": "/home/roman/Study/digital_image_processing_sem10/images/lab01/output/bnw_noise_var100.png",
+  "width": 1120,
+  "height": 1120,
+  "mse": 89.295451211735,
+  "psnr_db": 28.622510247561
+}

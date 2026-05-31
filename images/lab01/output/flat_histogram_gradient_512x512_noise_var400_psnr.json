@@ -1,0 +1,8 @@
+{
+  "original": "/home/roman/Study/digital_image_processing_sem10/images/lab01/input/flat_histogram_gradient_512x512.png",
+  "distorted": "/home/roman/Study/digital_image_processing_sem10/images/lab01/output/flat_histogram_gradient_512x512_noise_var400.png",
+  "width": 512,
+  "height": 512,
+  "mse": 365.298858642578,
+  "psnr_db": 22.504320455846
+}

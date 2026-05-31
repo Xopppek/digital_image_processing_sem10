@@ -1,0 +1,8 @@
+{
+  "original": "/home/roman/Study/digital_image_processing_sem10/images/lab01/input/imagesample.jpg",
+  "distorted": "/home/roman/Study/digital_image_processing_sem10/images/lab01/output/imagesample_noise_var1600.png",
+  "width": 1920,
+  "height": 1200,
+  "mse": 1473.120010416667,
+  "psnr_db": 16.448422319895
+}

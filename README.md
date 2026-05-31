@@ -55,6 +55,12 @@ cmake --build build
 ./build/dip lab1 noise --input images/lab01/input/dog.jpg --output images/lab01/output/dog_noise_var400.png --variance 400 --seed 1
 ```
 
+Рассчитать MSE и PSNR для исходного и зашумленного изображения:
+
+```sh
+./build/dip lab1 psnr --original images/lab01/input/dog.jpg --distorted images/lab01/output/dog_noise_var400.png --output images/lab01/output/dog_noise_var400_psnr.json
+```
+
 ## Входные и выходные изображения
 
 Для удобства проверки примеры входных и выходных изображений хранятся прямо в
@@ -72,8 +78,9 @@ images/lab06/output  результаты лабораторной 6
 
 Скрипт для воспроизводимого запуска примеров на текущем этапе обрабатывает
 изображения из `images/lab01/input` и записывает статистику, гистограммы и
-матрицы совместной встречаемости, а также зашумленные изображения в
-`images/lab01/output`:
+матрицы совместной встречаемости, зашумленные изображения и PSNR в
+`images/lab01/output`. Для разных входных изображений используются разные
+фиксированные дисперсии шума, чтобы значения PSNR отличались:
 
 ```sh
 scripts/run_all_examples.sh

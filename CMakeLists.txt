@@ -19,6 +19,7 @@ add_executable(dip
     src/lab01_analysis/cooccurrence.cpp
     src/lab01_analysis/histogram.cpp
     src/lab01_analysis/noise.cpp
+    src/lab01_analysis/quality.cpp
     src/lab01_analysis/statistics.cpp
 )
 

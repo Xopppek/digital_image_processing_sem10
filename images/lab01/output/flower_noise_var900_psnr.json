@@ -1,0 +1,8 @@
+{
+  "original": "/home/roman/Study/digital_image_processing_sem10/images/lab01/input/flower.jpg",
+  "distorted": "/home/roman/Study/digital_image_processing_sem10/images/lab01/output/flower_noise_var900.png",
+  "width": 1920,
+  "height": 1280,
+  "mse": 865.540283203125,
+  "psnr_db": 18.757930756401
+}
