@@ -33,6 +33,34 @@ cmake --build build
 ./build/dip lab6 --help
 ```
 
+Рассчитать статистические характеристики изображения для лабораторной 1:
+
+```sh
+./build/dip lab1 stats --input images/lab01/input/dog.jpg --output images/lab01/output/dog_stats.json --histogram-output images/lab01/output/dog_histogram.png
+```
+
+Статистика сохраняется в JSON-файл, гистограмма сохраняется отдельным
+изображением.
+
+Рассчитать матрицу совместной встречаемости для соседних пикселов с отступом
+`dr = 0`, `dc = 1`:
+
+```sh
+./build/dip lab1 glcm --input images/lab01/input/dog.jpg --output images/lab01/output/dog_glcm_dr0_dc1.json --dr 0 --dc 1 --matrix-output images/lab01/output/dog_glcm_dr0_dc1.png
+```
+
+Добавить аддитивный белый гауссов шум с заданной дисперсией:
+
+```sh
+./build/dip lab1 noise --input images/lab01/input/dog.jpg --output images/lab01/output/dog_noise_var400.png --variance 400 --seed 1
+```
+
+Рассчитать MSE и PSNR для исходного и зашумленного изображения:
+
+```sh
+./build/dip lab1 psnr --original images/lab01/input/dog.jpg --distorted images/lab01/output/dog_noise_var400.png --output images/lab01/output/dog_noise_var400_psnr.json
+```
+
 ## Входные и выходные изображения
 
 Для удобства проверки примеры входных и выходных изображений хранятся прямо в
@@ -48,9 +76,11 @@ images/lab06/input   входные изображения для лаборат
 images/lab06/output  результаты лабораторной 6
 ```
 
-Скрипт для воспроизводимого запуска примеров обрабатывает изображения из
-`images/labXX/input` и записывает результаты в соответствующие каталоги
-`images/labXX/output`:
+Скрипт для воспроизводимого запуска примеров на текущем этапе обрабатывает
+изображения из `images/lab01/input` и записывает статистику, гистограммы и
+матрицы совместной встречаемости, зашумленные изображения и PSNR в
+`images/lab01/output`. Для разных входных изображений используются разные
+фиксированные дисперсии шума, чтобы значения PSNR отличались:
 
 ```sh
 scripts/run_all_examples.sh

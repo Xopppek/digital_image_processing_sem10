@@ -1,0 +1,8 @@
+{
+  "original": "/home/roman/Study/digital_image_processing_sem10/images/lab01/input/dog.jpg",
+  "distorted": "/home/roman/Study/digital_image_processing_sem10/images/lab01/output/dog_noise_var225.png",
+  "width": 350,
+  "height": 500,
+  "mse": 224.331062857143,
+  "psnr_db": 24.621909468774
+}
