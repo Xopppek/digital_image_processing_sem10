@@ -18,6 +18,7 @@ add_executable(dip
     src/core/image_io.cpp
     src/lab01_analysis/cooccurrence.cpp
     src/lab01_analysis/histogram.cpp
+    src/lab01_analysis/noise.cpp
     src/lab01_analysis/statistics.cpp
 )
 

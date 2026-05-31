@@ -2,12 +2,16 @@
 
 #include "core/image_io.hpp"
 #include "lab01_analysis/cooccurrence.hpp"
+#include "lab01_analysis/noise.hpp"
 #include "lab01_analysis/statistics.hpp"
 
+#include <cmath>
+#include <cstdint>
 #include <exception>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -19,6 +23,7 @@ void print_general_help(std::ostream& output) {
            << "  dip info --input <path>\n"
            << "  dip lab1 stats --input <path> --output <path> [--histogram-output <path>]\n"
            << "  dip lab1 glcm --input <path> --output <path> --dr <rows> --dc <columns> [--matrix-output <path>]\n"
+           << "  dip lab1 noise --input <path> --output <path> --variance <value> [--seed <value>]\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -33,10 +38,12 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
     if (lab == "lab1") {
         output << "  dip lab1 stats --input <path> --output <path> [--histogram-output <path>]\n"
                << "  dip lab1 glcm --input <path> --output <path> --dr <rows> --dc <columns> [--matrix-output <path>]\n"
+               << "  dip lab1 noise --input <path> --output <path> --variance <value> [--seed <value>]\n"
                << "  dip lab1 --help\n\n"
                << "Available commands:\n"
                << "  stats  Calculate grayscale image statistics and optionally save a histogram image.\n"
-               << "  glcm   Calculate a gray-level co-occurrence matrix and optionally save its image.\n";
+               << "  glcm   Calculate a gray-level co-occurrence matrix and optionally save its image.\n"
+               << "  noise  Add white Gaussian noise with a specified variance.\n";
         return;
     }
 
@@ -86,6 +93,31 @@ bool parse_int(const std::string& text, int& value) {
         std::size_t parsed = 0;
         value = std::stoi(text, &parsed);
         return parsed == text.size();
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+bool parse_double(const std::string& text, double& value) {
+    try {
+        std::size_t parsed = 0;
+        value = std::stod(text, &parsed);
+        return parsed == text.size();
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+bool parse_seed(const std::string& text, std::uint32_t& value) {
+    try {
+        std::size_t parsed = 0;
+        const unsigned long parsed_value = std::stoul(text, &parsed);
+        if (parsed != text.size() || parsed_value > std::numeric_limits<std::uint32_t>::max()) {
+            return false;
+        }
+
+        value = static_cast<std::uint32_t>(parsed_value);
+        return true;
     } catch (const std::exception&) {
         return false;
     }
@@ -289,6 +321,66 @@ int run_lab1_glcm(const std::vector<std::string>& args) {
     return 0;
 }
 
+int run_lab1_noise(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    double variance = 0.0;
+    std::uint32_t seed = 1;
+    bool has_variance = false;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--variance" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], variance)) {
+                std::cerr << "Invalid value for --variance: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_variance = true;
+            ++i;
+        } else if (args[i] == "--seed" && i + 1 < args.size()) {
+            if (!parse_seed(args[i + 1], seed)) {
+                std::cerr << "Invalid value for --seed: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab1 noise: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (!has_variance) {
+        std::cerr << "Missing required option: --variance <value>\n";
+        return 2;
+    }
+
+    if (!std::isfinite(variance) || variance < 0.0) {
+        std::cerr << "Variance must be a finite non-negative value.\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    const GrayImage noisy_image = lab01::add_gaussian_noise(image, variance, seed);
+    write_gray_image(output_path, noisy_image);
+
+    return 0;
+}
+
 int run_lab1(const std::vector<std::string>& args) {
     if (args.size() == 1 && args.front() == "--help") {
         print_lab_help(std::cout, "lab1");
@@ -301,6 +393,10 @@ int run_lab1(const std::vector<std::string>& args) {
 
     if (!args.empty() && args.front() == "glcm") {
         return run_lab1_glcm({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "noise") {
+        return run_lab1_noise({args.begin() + 1, args.end()});
     }
 
     std::cerr << "Unknown lab1 command.\n";

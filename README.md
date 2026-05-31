@@ -49,6 +49,12 @@ cmake --build build
 ./build/dip lab1 glcm --input images/lab01/input/dog.jpg --output images/lab01/output/dog_glcm_dr0_dc1.json --dr 0 --dc 1 --matrix-output images/lab01/output/dog_glcm_dr0_dc1.png
 ```
 
+Добавить аддитивный белый гауссов шум с заданной дисперсией:
+
+```sh
+./build/dip lab1 noise --input images/lab01/input/dog.jpg --output images/lab01/output/dog_noise_var400.png --variance 400 --seed 1
+```
+
 ## Входные и выходные изображения
 
 Для удобства проверки примеры входных и выходных изображений хранятся прямо в
@@ -66,7 +72,8 @@ images/lab06/output  результаты лабораторной 6
 
 Скрипт для воспроизводимого запуска примеров на текущем этапе обрабатывает
 изображения из `images/lab01/input` и записывает статистику, гистограммы и
-матрицы совместной встречаемости в JSON и PNG в `images/lab01/output`:
+матрицы совместной встречаемости, а также зашумленные изображения в
+`images/lab01/output`:
 
 ```sh
 scripts/run_all_examples.sh
