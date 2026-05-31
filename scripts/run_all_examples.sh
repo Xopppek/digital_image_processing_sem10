@@ -23,6 +23,8 @@ while IFS= read -r -d '' image_path; do
 
     stats_path="${output_dir}/${stem}_stats.json"
     histogram_path="${output_dir}/${stem}_histogram.png"
+    glcm_path="${output_dir}/${stem}_glcm_dr0_dc1.json"
+    glcm_image_path="${output_dir}/${stem}_glcm_dr0_dc1.png"
 
     "${binary}" lab1 stats \
         --input "${image_path}" \
@@ -31,6 +33,16 @@ while IFS= read -r -d '' image_path; do
 
     echo "wrote ${stats_path#${repo_root}/}"
     echo "wrote ${histogram_path#${repo_root}/}"
+
+    "${binary}" lab1 glcm \
+        --input "${image_path}" \
+        --output "${glcm_path}" \
+        --dr 0 \
+        --dc 1 \
+        --matrix-output "${glcm_image_path}"
+
+    echo "wrote ${glcm_path#${repo_root}/}"
+    echo "wrote ${glcm_image_path#${repo_root}/}"
 done < <(find "${input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)

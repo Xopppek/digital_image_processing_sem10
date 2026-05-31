@@ -16,6 +16,7 @@ add_executable(dip
     src/app/cli.cpp
     src/core/gray_image.cpp
     src/core/image_io.cpp
+    src/lab01_analysis/cooccurrence.cpp
     src/lab01_analysis/histogram.cpp
     src/lab01_analysis/statistics.cpp
 )
