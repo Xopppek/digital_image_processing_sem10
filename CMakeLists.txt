@@ -22,6 +22,7 @@ add_executable(dip
     src/lab01_analysis/quality.cpp
     src/lab01_analysis/statistics.cpp
     src/lab02_fourier/fft.cpp
+    src/lab03_geometry/rotation.cpp
 )
 
 target_include_directories(dip

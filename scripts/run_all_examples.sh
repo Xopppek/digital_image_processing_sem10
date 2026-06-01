@@ -128,6 +128,43 @@ done < <(find "${lab02_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
 
+lab03_output_dir="${repo_root}/images/lab03/output"
+lab03_input_dir="${repo_root}/images/lab03/input"
+mkdir -p "${lab03_output_dir}"
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+
+    for angle in 30 -45; do
+        angle_label="${angle/-/m}"
+        angle_label="${angle_label/./p}"
+
+        for method in nearest bilinear bicubic; do
+            rotated_path="${lab03_output_dir}/${image_stem}_rotate_${method}_${angle_label}.png"
+
+            "${binary}" lab3 rotate \
+                --input "${image_path}" \
+                --output "${rotated_path}" \
+                --angle "${angle}" \
+                --method "${method}"
+
+            echo "wrote ${rotated_path#${repo_root}/}"
+        done
+
+        comparison_path="${lab03_output_dir}/${image_stem}_rotation_comparison_${angle_label}.json"
+        "${binary}" lab3 compare \
+            --input "${image_path}" \
+            --output "${comparison_path}" \
+            --angle "${angle}"
+
+        echo "wrote ${comparison_path#${repo_root}/}"
+    done
+done < <(find "${lab03_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+
 if [[ "${found_any}" -eq 0 ]]; then
-    echo "No example inputs found under images/lab01/input or images/lab02/input."
+    echo "No example inputs found under images/lab01/input, images/lab02/input, or images/lab03/input."
 fi

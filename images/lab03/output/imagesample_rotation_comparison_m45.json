@@ -1,0 +1,36 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab03/input/imagesample.jpg",
+  "angle_degrees": -45.000000000000,
+  "quality_method": "rotate by angle, rotate back by negative angle, center-crop to original size",
+  "original_width": 1920,
+  "original_height": 1200,
+  "methods": [
+    {
+      "method": "nearest",
+      "rotated_width": 2207,
+      "rotated_height": 2207,
+      "rotation_ms": 217.382292000000,
+      "inverse_rotation_ms": 441.713128000000,
+      "roundtrip_mse": 273.098596788194,
+      "roundtrip_psnr_db": 23.767608921771
+    },
+    {
+      "method": "bilinear",
+      "rotated_width": 2207,
+      "rotated_height": 2207,
+      "rotation_ms": 295.136737000000,
+      "inverse_rotation_ms": 596.873430000000,
+      "roundtrip_mse": 200.399541666667,
+      "roundtrip_psnr_db": 25.111836369455
+    },
+    {
+      "method": "bicubic",
+      "rotated_width": 2207,
+      "rotated_height": 2207,
+      "rotation_ms": 711.219534000000,
+      "inverse_rotation_ms": 1483.512188000000,
+      "roundtrip_mse": 225.823046440972,
+      "roundtrip_psnr_db": 24.593120989592
+    }
+  ]
+}
