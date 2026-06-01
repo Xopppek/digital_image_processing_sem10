@@ -52,13 +52,31 @@ cmake --build build
 Добавить аддитивный белый гауссов шум с заданной дисперсией:
 
 ```sh
-./build/dip lab1 noise --input images/lab01/input/dog.jpg --output images/lab01/output/dog_noise_var400.png --variance 400 --seed 1
+./build/dip lab1 noise --input images/lab01/input/dog.jpg --output images/lab01/output/dog_noise_var225.png --variance 225 --seed 1
 ```
 
 Рассчитать MSE и PSNR для исходного и зашумленного изображения:
 
 ```sh
-./build/dip lab1 psnr --original images/lab01/input/dog.jpg --distorted images/lab01/output/dog_noise_var400.png --output images/lab01/output/dog_noise_var400_psnr.json
+./build/dip lab1 psnr --original images/lab01/input/dog.jpg --distorted images/lab01/output/dog_noise_var225.png --output images/lab01/output/dog_noise_var225_psnr.json
+```
+
+Построить изображение формы одномерного сигнала для лабораторной 2:
+
+```sh
+./build/dip lab2 signal-plot --input images/lab02/input/synthetic_sine_mix.txt --output images/lab02/output/synthetic_sine_mix_waveform.png
+```
+
+Построить логарифм амплитудного спектра одномерного сигнала для лабораторной 2:
+
+```sh
+./build/dip lab2 signal-spectrum --input images/lab02/input/synthetic_sine_mix.txt --output images/lab02/output/synthetic_sine_mix_spectrum.png
+```
+
+Построить логарифм амплитудного спектра изображения для лабораторной 2:
+
+```sh
+./build/dip lab2 image-spectrum --input images/lab02/input/synthetic_sine_mix.png --output images/lab02/output/synthetic_sine_mix_image_spectrum.png
 ```
 
 ## Входные и выходные изображения
@@ -79,8 +97,12 @@ images/lab06/output  результаты лабораторной 6
 Скрипт для воспроизводимого запуска примеров на текущем этапе обрабатывает
 изображения из `images/lab01/input` и записывает статистику, гистограммы и
 матрицы совместной встречаемости, зашумленные изображения и PSNR в
-`images/lab01/output`. Для разных входных изображений используются разные
-фиксированные дисперсии шума, чтобы значения PSNR отличались:
+`images/lab01/output`, а также строит графики и спектры для всех сигналов и
+спектры для всех изображений из `images/lab02/input`. Синтетические сигнал и
+изображение из нескольких синусоид хранятся в `images/lab02/input` как обычные
+входные примеры.
+Для разных входных изображений лабораторной 1 используются разные фиксированные
+дисперсии шума, чтобы значения PSNR отличались:
 
 ```sh
 scripts/run_all_examples.sh

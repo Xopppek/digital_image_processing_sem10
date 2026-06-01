@@ -84,6 +84,50 @@ done < <(find "${input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
 
+lab02_output_dir="${repo_root}/images/lab02/output"
+lab02_input_dir="${repo_root}/images/lab02/input"
+mkdir -p "${lab02_output_dir}"
+
+while IFS= read -r -d '' signal_path; do
+    found_any=1
+    signal_name="$(basename "${signal_path}")"
+    signal_stem="${signal_name%.*}"
+    signal_plot="${lab02_output_dir}/${signal_stem}_waveform.png"
+    signal_spectrum="${lab02_output_dir}/${signal_stem}_spectrum.png"
+
+    "${binary}" lab2 signal-plot \
+        --input "${signal_path}" \
+        --output "${signal_plot}"
+
+    echo "wrote ${signal_plot#${repo_root}/}"
+
+    "${binary}" lab2 signal-spectrum \
+        --input "${signal_path}" \
+        --output "${signal_spectrum}"
+
+    echo "wrote ${signal_spectrum#${repo_root}/}"
+done < <(find "${lab02_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.txt' -o -iname '*.csv' -o -iname '*.dat' \) \
+    -print0 | sort -z)
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+    image_spectrum="${lab02_output_dir}/${image_stem}_image_spectrum.png"
+    if [[ "${image_stem}" == "image" ]]; then
+        image_spectrum="${lab02_output_dir}/image_spectrum.png"
+    fi
+
+    "${binary}" lab2 image-spectrum \
+        --input "${image_path}" \
+        --output "${image_spectrum}"
+
+    echo "wrote ${image_spectrum#${repo_root}/}"
+done < <(find "${lab02_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+
 if [[ "${found_any}" -eq 0 ]]; then
-    echo "No Lab 1 input images found under images/lab01/input."
+    echo "No example inputs found under images/lab01/input or images/lab02/input."
 fi

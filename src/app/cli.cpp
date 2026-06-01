@@ -5,6 +5,7 @@
 #include "lab01_analysis/noise.hpp"
 #include "lab01_analysis/quality.hpp"
 #include "lab01_analysis/statistics.hpp"
+#include "lab02_fourier/fft.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -13,6 +14,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -26,6 +28,9 @@ void print_general_help(std::ostream& output) {
            << "  dip lab1 glcm --input <path> --output <path> --dr <rows> --dc <columns> [--matrix-output <path>]\n"
            << "  dip lab1 noise --input <path> --output <path> --variance <value> [--seed <value>]\n"
            << "  dip lab1 psnr --original <path> --distorted <path> --output <path>\n"
+           << "  dip lab2 signal-plot --input <path> --output <path>\n"
+           << "  dip lab2 signal-spectrum --input <path> --output <path>\n"
+           << "  dip lab2 image-spectrum --input <path> --output <path>\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -48,6 +53,18 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
                << "  glcm   Calculate a gray-level co-occurrence matrix and optionally save its image.\n"
                << "  noise  Add white Gaussian noise with a specified variance.\n"
                << "  psnr   Calculate MSE and PSNR for two grayscale images.\n";
+        return;
+    }
+
+    if (lab == "lab2") {
+        output << "  dip lab2 signal-plot --input <path> --output <path>\n"
+               << "  dip lab2 signal-spectrum --input <path> --output <path>\n"
+               << "  dip lab2 image-spectrum --input <path> --output <path>\n"
+               << "  dip lab2 --help\n\n"
+               << "Available commands:\n"
+               << "  signal-plot      Draw a signal waveform image.\n"
+               << "  signal-spectrum  Calculate and save a centered log amplitude spectrum for a signal.\n"
+               << "  image-spectrum   Calculate and save a centered log amplitude spectrum for an image.\n";
         return;
     }
 
@@ -289,6 +306,37 @@ void write_psnr_json(
            << "}\n";
 }
 
+std::vector<double> read_signal_samples(const std::string& input_path) {
+    std::ifstream input(input_path);
+    if (!input) {
+        throw std::runtime_error("failed to open signal file: " + input_path);
+    }
+
+    std::vector<double> samples;
+    std::string line;
+
+    while (std::getline(input, line)) {
+        for (char& symbol : line) {
+            if (symbol == ',' || symbol == ';') {
+                symbol = ' ';
+            }
+        }
+
+        std::istringstream line_stream(line);
+        double value = 0.0;
+
+        while (line_stream >> value) {
+            samples.push_back(value);
+        }
+    }
+
+    if (samples.empty()) {
+        throw std::runtime_error("signal file contains no samples: " + input_path);
+    }
+
+    return samples;
+}
+
 int run_lab1_glcm(const std::vector<std::string>& args) {
     std::string input_path;
     std::string output_path;
@@ -489,6 +537,130 @@ int run_lab1(const std::vector<std::string>& args) {
     return 2;
 }
 
+int run_lab2_signal_spectrum(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab2 signal-spectrum: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    const std::vector<double> samples = read_signal_samples(input_path);
+    const std::vector<lab02::Complex> spectrum = lab02::forward_fft_signal(samples);
+    write_gray_image(output_path, lab02::render_signal_log_amplitude_spectrum(spectrum));
+
+    return 0;
+}
+
+int run_lab2_signal_plot(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab2 signal-plot: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    const std::vector<double> samples = read_signal_samples(input_path);
+    write_gray_image(output_path, lab02::render_signal_plot(samples));
+
+    return 0;
+}
+
+int run_lab2_image_spectrum(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab2 image-spectrum: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    const lab02::FourierImage spectrum = lab02::forward_fft_image(image);
+    write_gray_image(output_path, lab02::render_image_log_amplitude_spectrum(spectrum));
+
+    return 0;
+}
+
+int run_lab2(const std::vector<std::string>& args) {
+    if (args.size() == 1 && args.front() == "--help") {
+        print_lab_help(std::cout, "lab2");
+        return 0;
+    }
+
+    if (!args.empty() && args.front() == "signal-spectrum") {
+        return run_lab2_signal_spectrum({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "signal-plot") {
+        return run_lab2_signal_plot({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "image-spectrum") {
+        return run_lab2_image_spectrum({args.begin() + 1, args.end()});
+    }
+
+    std::cerr << "Unknown lab2 command.\n";
+    print_lab_help(std::cerr, "lab2");
+    return 2;
+}
+
 } // namespace
 
 int run_cli(const int argc, char** argv) {
@@ -515,6 +687,10 @@ int run_cli(const int argc, char** argv) {
 
         if (command == "lab1") {
             return run_lab1(args);
+        }
+
+        if (command == "lab2") {
+            return run_lab2(args);
         }
 
         if (is_lab_command(command)) {
