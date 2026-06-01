@@ -1,0 +1,36 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab03/input/pixel_art_invader.png",
+  "angle_degrees": 30.000000000000,
+  "quality_method": "rotate by angle, rotate back by negative angle, center-crop to original size",
+  "original_width": 32,
+  "original_height": 32,
+  "methods": [
+    {
+      "method": "nearest",
+      "rotated_width": 44,
+      "rotated_height": 44,
+      "rotation_ms": 0.183464000000,
+      "inverse_rotation_ms": 0.333659000000,
+      "roundtrip_mse": 510.449218750000,
+      "roundtrip_psnr_db": 21.051278174100
+    },
+    {
+      "method": "bilinear",
+      "rotated_width": 44,
+      "rotated_height": 44,
+      "rotation_ms": 0.250819000000,
+      "inverse_rotation_ms": 0.483788000000,
+      "roundtrip_mse": 1206.416992187500,
+      "roundtrip_psnr_db": 17.315829153319
+    },
+    {
+      "method": "bicubic",
+      "rotated_width": 44,
+      "rotated_height": 44,
+      "rotation_ms": 0.616372000000,
+      "inverse_rotation_ms": 1.188326000000,
+      "roundtrip_mse": 952.537109375000,
+      "roundtrip_psnr_db": 18.341984567482
+    }
+  ]
+}

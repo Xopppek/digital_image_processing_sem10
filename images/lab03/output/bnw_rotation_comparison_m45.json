@@ -1,0 +1,36 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab03/input/bnw.png",
+  "angle_degrees": -45.000000000000,
+  "quality_method": "rotate by angle, rotate back by negative angle, center-crop to original size",
+  "original_width": 1120,
+  "original_height": 1120,
+  "methods": [
+    {
+      "method": "nearest",
+      "rotated_width": 1584,
+      "rotated_height": 1584,
+      "rotation_ms": 111.993611000000,
+      "inverse_rotation_ms": 225.232970000000,
+      "roundtrip_mse": 72.313901466837,
+      "roundtrip_psnr_db": 29.538585677228
+    },
+    {
+      "method": "bilinear",
+      "rotated_width": 1584,
+      "rotated_height": 1584,
+      "rotation_ms": 156.095203000000,
+      "inverse_rotation_ms": 309.851567000000,
+      "roundtrip_mse": 48.910722257653,
+      "roundtrip_psnr_db": 31.236762848347
+    },
+    {
+      "method": "bicubic",
+      "rotated_width": 1584,
+      "rotated_height": 1584,
+      "rotation_ms": 382.975778000000,
+      "inverse_rotation_ms": 772.553094000000,
+      "roundtrip_mse": 12.264464285714,
+      "roundtrip_psnr_db": 37.244317779822
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab03/input/flower.jpg",
+  "angle_degrees": -45.000000000000,
+  "quality_method": "rotate by angle, rotate back by negative angle, center-crop to original size",
+  "original_width": 1920,
+  "original_height": 1280,
+  "methods": [
+    {
+      "method": "nearest",
+      "rotated_width": 2263,
+      "rotated_height": 2263,
+      "rotation_ms": 229.259238000000,
+      "inverse_rotation_ms": 459.958347000000,
+      "roundtrip_mse": 1.780587565104,
+      "roundtrip_psnr_db": 45.625170247524
+    },
+    {
+      "method": "bilinear",
+      "rotated_width": 2263,
+      "rotated_height": 2263,
+      "rotation_ms": 314.744658000000,
+      "inverse_rotation_ms": 634.431252000000,
+      "roundtrip_mse": 7.900087076823,
+      "roundtrip_psnr_db": 39.154484826439
+    },
+    {
+      "method": "bicubic",
+      "rotated_width": 2263,
+      "rotated_height": 2263,
+      "rotation_ms": 756.887510000000,
+      "inverse_rotation_ms": 1566.025847000000,
+      "roundtrip_mse": 7.507608235677,
+      "roundtrip_psnr_db": 39.375787588156
+    }
+  ]
+}

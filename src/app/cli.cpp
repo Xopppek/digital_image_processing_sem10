@@ -6,7 +6,10 @@
 #include "lab01_analysis/quality.hpp"
 #include "lab01_analysis/statistics.hpp"
 #include "lab02_fourier/fft.hpp"
+#include "lab03_geometry/rotation.hpp"
 
+#include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <exception>
@@ -31,6 +34,8 @@ void print_general_help(std::ostream& output) {
            << "  dip lab2 signal-plot --input <path> --output <path>\n"
            << "  dip lab2 signal-spectrum --input <path> --output <path>\n"
            << "  dip lab2 image-spectrum --input <path> --output <path>\n"
+           << "  dip lab3 rotate --input <path> --output <path> --angle <degrees> [--method <name>]\n"
+           << "  dip lab3 compare --input <path> --output <path> --angle <degrees>\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -65,6 +70,16 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
                << "  signal-plot      Draw a signal waveform image.\n"
                << "  signal-spectrum  Calculate and save a centered log amplitude spectrum for a signal.\n"
                << "  image-spectrum   Calculate and save a centered log amplitude spectrum for an image.\n";
+        return;
+    }
+
+    if (lab == "lab3") {
+        output << "  dip lab3 rotate --input <path> --output <path> --angle <degrees> [--method <name>]\n"
+               << "  dip lab3 compare --input <path> --output <path> --angle <degrees>\n"
+               << "  dip lab3 --help\n\n"
+               << "Available commands:\n"
+               << "  rotate   Rotate a grayscale image using nearest, bilinear, or bicubic interpolation.\n"
+               << "  compare  Compare rotation time and round-trip PSNR/MSE for all interpolation methods.\n";
         return;
     }
 
@@ -142,6 +157,25 @@ bool parse_seed(const std::string& text, std::uint32_t& value) {
     } catch (const std::exception&) {
         return false;
     }
+}
+
+bool parse_interpolation_method(const std::string& text, lab03::InterpolationMethod& method) {
+    if (text == "nearest") {
+        method = lab03::InterpolationMethod::nearest;
+        return true;
+    }
+
+    if (text == "bilinear") {
+        method = lab03::InterpolationMethod::bilinear;
+        return true;
+    }
+
+    if (text == "bicubic") {
+        method = lab03::InterpolationMethod::bicubic;
+        return true;
+    }
+
+    return false;
 }
 
 void write_statistics_json(
@@ -335,6 +369,129 @@ std::vector<double> read_signal_samples(const std::string& input_path) {
     }
 
     return samples;
+}
+
+GrayImage center_crop_or_pad(
+    const GrayImage& image,
+    const std::size_t width,
+    const std::size_t height,
+    const GrayImage::Pixel background = 0
+) {
+    GrayImage result(width, height, std::vector<GrayImage::Pixel>(width * height, background));
+    const long offset_x = (static_cast<long>(image.width()) - static_cast<long>(width)) / 2;
+    const long offset_y = (static_cast<long>(image.height()) - static_cast<long>(height)) / 2;
+
+    for (std::size_t y = 0; y < height; ++y) {
+        const long source_y = static_cast<long>(y) + offset_y;
+        if (source_y < 0 || source_y >= static_cast<long>(image.height())) {
+            continue;
+        }
+
+        for (std::size_t x = 0; x < width; ++x) {
+            const long source_x = static_cast<long>(x) + offset_x;
+            if (source_x < 0 || source_x >= static_cast<long>(image.width())) {
+                continue;
+            }
+
+            result.at(x, y) = image.at(static_cast<std::size_t>(source_x), static_cast<std::size_t>(source_y));
+        }
+    }
+
+    return result;
+}
+
+double elapsed_milliseconds(const std::chrono::steady_clock::time_point begin) {
+    const auto elapsed = std::chrono::steady_clock::now() - begin;
+    return std::chrono::duration<double, std::milli>(elapsed).count();
+}
+
+void write_lab3_comparison_json(
+    const std::string& output_path,
+    const std::string& input_path,
+    const GrayImage& original,
+    const double angle_degrees
+) {
+    struct MethodResult {
+        lab03::InterpolationMethod method;
+        double rotation_ms{0.0};
+        double inverse_rotation_ms{0.0};
+        double mse{0.0};
+        double psnr{0.0};
+        std::size_t rotated_width{0};
+        std::size_t rotated_height{0};
+    };
+
+    constexpr std::array<lab03::InterpolationMethod, 3> methods{{
+        lab03::InterpolationMethod::nearest,
+        lab03::InterpolationMethod::bilinear,
+        lab03::InterpolationMethod::bicubic,
+    }};
+
+    std::vector<MethodResult> results;
+    results.reserve(methods.size());
+
+    for (const lab03::InterpolationMethod method : methods) {
+        const auto rotation_begin = std::chrono::steady_clock::now();
+        const GrayImage rotated = lab03::rotate_image(original, angle_degrees, method);
+        const double rotation_ms = elapsed_milliseconds(rotation_begin);
+
+        const auto inverse_begin = std::chrono::steady_clock::now();
+        const GrayImage restored_canvas = lab03::rotate_image(rotated, -angle_degrees, method);
+        const double inverse_rotation_ms = elapsed_milliseconds(inverse_begin);
+
+        const GrayImage restored = center_crop_or_pad(restored_canvas, original.width(), original.height());
+        results.push_back({
+            method,
+            rotation_ms,
+            inverse_rotation_ms,
+            lab01::mean_squared_error(original, restored),
+            lab01::peak_signal_to_noise_ratio(original, restored),
+            rotated.width(),
+            rotated.height(),
+        });
+    }
+
+    std::ofstream output(output_path);
+    if (!output) {
+        throw std::runtime_error("failed to open output file: " + output_path);
+    }
+
+    output << std::fixed << std::setprecision(12);
+    output << "{\n"
+           << "  \"input\": \"" << input_path << "\",\n"
+           << "  \"angle_degrees\": " << angle_degrees << ",\n"
+           << "  \"quality_method\": \"rotate by angle, rotate back by negative angle, center-crop to original size\",\n"
+           << "  \"original_width\": " << original.width() << ",\n"
+           << "  \"original_height\": " << original.height() << ",\n"
+           << "  \"methods\": [\n";
+
+    for (std::size_t i = 0; i < results.size(); ++i) {
+        const MethodResult& result = results[i];
+        output << "    {\n"
+               << "      \"method\": \"" << lab03::interpolation_method_name(result.method) << "\",\n"
+               << "      \"rotated_width\": " << result.rotated_width << ",\n"
+               << "      \"rotated_height\": " << result.rotated_height << ",\n"
+               << "      \"rotation_ms\": " << result.rotation_ms << ",\n"
+               << "      \"inverse_rotation_ms\": " << result.inverse_rotation_ms << ",\n"
+               << "      \"roundtrip_mse\": " << result.mse << ",\n"
+               << "      \"roundtrip_psnr_db\": ";
+
+        if (std::isinf(result.psnr)) {
+            output << "\"inf\"";
+        } else {
+            output << result.psnr;
+        }
+
+        output << "\n"
+               << "    }";
+        if (i + 1 != results.size()) {
+            output << ",";
+        }
+        output << "\n";
+    }
+
+    output << "  ]\n"
+           << "}\n";
 }
 
 int run_lab1_glcm(const std::vector<std::string>& args) {
@@ -661,6 +818,137 @@ int run_lab2(const std::vector<std::string>& args) {
     return 2;
 }
 
+int run_lab3_rotate(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    double angle_degrees = 0.0;
+    bool has_angle = false;
+    lab03::InterpolationMethod method = lab03::InterpolationMethod::bilinear;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--angle" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], angle_degrees)) {
+                std::cerr << "Invalid value for --angle: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_angle = true;
+            ++i;
+        } else if (args[i] == "--method" && i + 1 < args.size()) {
+            if (!parse_interpolation_method(args[i + 1], method)) {
+                std::cerr << "Invalid interpolation method for --method: " << args[i + 1] << '\n';
+                std::cerr << "Expected one of: nearest, bilinear, bicubic.\n";
+                return 2;
+            }
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab3 rotate: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (!has_angle) {
+        std::cerr << "Missing required option: --angle <degrees>\n";
+        return 2;
+    }
+
+    if (!std::isfinite(angle_degrees)) {
+        std::cerr << "Angle must be a finite value.\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    write_gray_image(output_path, lab03::rotate_image(image, angle_degrees, method));
+
+    return 0;
+}
+
+int run_lab3_compare(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    double angle_degrees = 0.0;
+    bool has_angle = false;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--angle" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], angle_degrees)) {
+                std::cerr << "Invalid value for --angle: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_angle = true;
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab3 compare: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (!has_angle) {
+        std::cerr << "Missing required option: --angle <degrees>\n";
+        return 2;
+    }
+
+    if (!std::isfinite(angle_degrees)) {
+        std::cerr << "Angle must be a finite value.\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    write_lab3_comparison_json(output_path, input_path, image, angle_degrees);
+
+    return 0;
+}
+
+int run_lab3(const std::vector<std::string>& args) {
+    if (args.size() == 1 && args.front() == "--help") {
+        print_lab_help(std::cout, "lab3");
+        return 0;
+    }
+
+    if (!args.empty() && args.front() == "rotate") {
+        return run_lab3_rotate({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "compare") {
+        return run_lab3_compare({args.begin() + 1, args.end()});
+    }
+
+    std::cerr << "Unknown lab3 command.\n";
+    print_lab_help(std::cerr, "lab3");
+    return 2;
+}
+
 } // namespace
 
 int run_cli(const int argc, char** argv) {
@@ -691,6 +979,10 @@ int run_cli(const int argc, char** argv) {
 
         if (command == "lab2") {
             return run_lab2(args);
+        }
+
+        if (command == "lab3") {
+            return run_lab3(args);
         }
 
         if (is_lab_command(command)) {
