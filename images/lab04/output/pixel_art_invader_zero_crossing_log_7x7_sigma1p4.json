@@ -1,0 +1,15 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab04/input/pixel_art_invader.png",
+  "edge_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/pixel_art_invader_zero_crossing_log_7x7_sigma1p4.png",
+  "method": "LoG zero crossing",
+  "kernel_width": 7,
+  "kernel_height": 7,
+  "sigma": 1.400000000000,
+  "threshold": 10.767892583625,
+  "threshold_method": "3 * sum(abs(I_e)) / (4 * W * H)",
+  "original_width": 32,
+  "original_height": 32,
+  "edge_width": 26,
+  "edge_height": 26,
+  "edge_pixels": 282
+}

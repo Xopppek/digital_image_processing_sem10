@@ -27,6 +27,27 @@ void require_odd_positive_size(const std::size_t size, const char* name) {
     }
 }
 
+void require_valid_response(const ConvolutionResponse& response) {
+    if (response.width == 0 || response.height == 0 || response.values.size() != response.width * response.height) {
+        throw std::invalid_argument("invalid convolution response dimensions");
+    }
+
+    for (const double value : response.values) {
+        if (!std::isfinite(value)) {
+            throw std::invalid_argument("convolution response values must be finite");
+        }
+    }
+}
+
+bool has_zero_crossing(const double first, const double second, const double threshold) {
+    if (std::abs(first - second) < threshold) {
+        return false;
+    }
+
+    return (first < 0.0 && second > 0.0) ||
+           (first > 0.0 && second < 0.0);
+}
+
 } // namespace
 
 const char* laplacian_kernel_name(const LaplacianKernel kernel) noexcept {
@@ -94,16 +115,10 @@ Kernel2D make_log_kernel(const std::size_t size, const double sigma) {
 }
 
 GrayImage render_response_magnitude(const ConvolutionResponse& response) {
-    if (response.width == 0 || response.height == 0 || response.values.size() != response.width * response.height) {
-        throw std::invalid_argument("invalid convolution response dimensions");
-    }
+    require_valid_response(response);
 
     double max_magnitude = 0.0;
     for (const double value : response.values) {
-        if (!std::isfinite(value)) {
-            throw std::invalid_argument("convolution response values must be finite");
-        }
-
         max_magnitude = std::max(max_magnitude, std::abs(value));
     }
 
@@ -123,12 +138,67 @@ GrayImage render_response_magnitude(const ConvolutionResponse& response) {
     return result;
 }
 
+double automatic_zero_crossing_threshold(const ConvolutionResponse& response) {
+    require_valid_response(response);
+
+    double absolute_sum = 0.0;
+    for (const double value : response.values) {
+        absolute_sum += std::abs(value);
+    }
+
+    return 3.0 * absolute_sum / (4.0 * static_cast<double>(response.width * response.height));
+}
+
+GrayImage zero_crossing_edges(const ConvolutionResponse& response, const double threshold) {
+    require_valid_response(response);
+
+    if (!std::isfinite(threshold) || threshold < 0.0) {
+        throw std::invalid_argument("zero-crossing threshold must be a finite non-negative value");
+    }
+
+    GrayImage edges(response.width, response.height);
+    const auto value_at = [&response](const std::size_t x, const std::size_t y) {
+        return response.values[y * response.width + x];
+    };
+
+    for (std::size_t y = 0; y < response.height; ++y) {
+        for (std::size_t x = 0; x < response.width; ++x) {
+            const double center = value_at(x, y);
+            bool is_edge = false;
+
+            if (x + 1 < response.width) {
+                is_edge = is_edge || has_zero_crossing(center, value_at(x + 1, y), threshold);
+            }
+
+            if (x > 0) {
+                is_edge = is_edge || has_zero_crossing(center, value_at(x - 1, y), threshold);
+            }
+
+            if (y + 1 < response.height) {
+                is_edge = is_edge || has_zero_crossing(center, value_at(x, y + 1), threshold);
+            }
+
+            if (y > 0) {
+                is_edge = is_edge || has_zero_crossing(center, value_at(x, y - 1), threshold);
+            }
+
+            edges.at(x, y) = is_edge ? GrayImage::Pixel{255} : GrayImage::Pixel{0};
+        }
+    }
+
+    return edges;
+}
+
 GrayImage laplacian_filter(const GrayImage& image, const LaplacianKernel kernel) {
     return render_response_magnitude(convolve_valid_response(image, make_laplacian_kernel(kernel)));
 }
 
 GrayImage log_filter(const GrayImage& image, const std::size_t kernel_size, const double sigma) {
-    return render_response_magnitude(convolve_valid_response(image, make_log_kernel(kernel_size, sigma)));
+    return render_response_magnitude(log_response(image, kernel_size, sigma));
+}
+
+ConvolutionResponse log_response(const GrayImage& image, const std::size_t kernel_size, const double sigma) {
+    return convolve_valid_response(image, make_log_kernel(kernel_size, sigma));
 }
 
 } // namespace dip::lab04

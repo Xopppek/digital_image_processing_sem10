@@ -44,6 +44,7 @@ void print_general_help(std::ostream& output) {
            << "  dip lab4 lowpass-denoise --input <path> --noise <gaussian|impulse> --kernel-size <odd> --noisy-output <path> --filtered-output <path> --metrics-output <path> [--threshold <value>]\n"
            << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>]\n"
            << "  dip lab4 log-filter --input <path> --output <path> --kernel-size <odd> --sigma <value>\n"
+           << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -97,13 +98,15 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
                << "  dip lab4 lowpass-denoise --input <path> --noise <gaussian|impulse> --kernel-size <odd> --noisy-output <path> --filtered-output <path> --metrics-output <path> [--threshold <value>]\n"
                << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>]\n"
                << "  dip lab4 log-filter --input <path> --output <path> --kernel-size <odd> --sigma <value>\n"
+               << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
                << "  dip lab4 --help\n\n"
                << "Available commands:\n"
                << "  convolve          Apply a 2D spatial convolution kernel and drop boundary cells.\n"
                << "  threshold-lowpass Apply an averaging low-pass filter only when the change reaches a threshold.\n"
                << "  lowpass-denoise   Add noise, apply an averaging low-pass filter, and save PSNR metrics.\n"
                << "  laplacian         Save a normalized Laplacian response magnitude image.\n"
-               << "  log-filter        Save a normalized Laplacian-of-Gaussian response magnitude image.\n";
+               << "  log-filter        Save a normalized Laplacian-of-Gaussian response magnitude image.\n"
+               << "  zero-crossing     Save a binary edge map from LoG zero crossings.\n";
         return;
     }
 
@@ -590,6 +593,50 @@ void write_lowpass_denoise_json(
            << "  \"filtered_psnr_db\": ";
     write_psnr_value(output, filtered_psnr);
     output << "\n"
+           << "}\n";
+}
+
+std::size_t count_edge_pixels(const GrayImage& image) {
+    std::size_t count = 0;
+    for (const GrayImage::Pixel pixel : image.pixels()) {
+        if (pixel != 0) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+void write_zero_crossing_json(
+    const std::string& output_path,
+    const std::string& input_path,
+    const std::string& edge_output_path,
+    const GrayImage& original,
+    const GrayImage& edges,
+    const std::size_t kernel_size,
+    const double sigma,
+    const double threshold
+) {
+    std::ofstream output(output_path);
+    if (!output) {
+        throw std::runtime_error("failed to open output file: " + output_path);
+    }
+
+    output << std::fixed << std::setprecision(12);
+    output << "{\n"
+           << "  \"input\": \"" << input_path << "\",\n"
+           << "  \"edge_output\": \"" << edge_output_path << "\",\n"
+           << "  \"method\": \"LoG zero crossing\",\n"
+           << "  \"kernel_width\": " << kernel_size << ",\n"
+           << "  \"kernel_height\": " << kernel_size << ",\n"
+           << "  \"sigma\": " << sigma << ",\n"
+           << "  \"threshold\": " << threshold << ",\n"
+           << "  \"threshold_method\": \"3 * sum(abs(I_e)) / (4 * W * H)\",\n"
+           << "  \"original_width\": " << original.width() << ",\n"
+           << "  \"original_height\": " << original.height() << ",\n"
+           << "  \"edge_width\": " << edges.width() << ",\n"
+           << "  \"edge_height\": " << edges.height() << ",\n"
+           << "  \"edge_pixels\": " << count_edge_pixels(edges) << "\n"
            << "}\n";
 }
 
@@ -1557,6 +1604,99 @@ int run_lab4_log_filter(const std::vector<std::string>& args) {
     return 0;
 }
 
+int run_lab4_zero_crossing(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string metrics_output_path;
+    int kernel_size_value = 0;
+    bool has_kernel_size = false;
+    double sigma = 0.0;
+    bool has_sigma = false;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--metrics-output" && i + 1 < args.size()) {
+            metrics_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--kernel-size" && i + 1 < args.size()) {
+            if (!parse_int(args[i + 1], kernel_size_value)) {
+                std::cerr << "Invalid integer value for --kernel-size: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_kernel_size = true;
+            ++i;
+        } else if (args[i] == "--sigma" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], sigma)) {
+                std::cerr << "Invalid value for --sigma: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_sigma = true;
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab4 zero-crossing: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (!has_kernel_size) {
+        std::cerr << "Missing required option: --kernel-size <odd>\n";
+        return 2;
+    }
+
+    if (kernel_size_value <= 0 || kernel_size_value % 2 == 0) {
+        std::cerr << "Kernel size must be a positive odd integer.\n";
+        return 2;
+    }
+
+    if (!has_sigma) {
+        std::cerr << "Missing required option: --sigma <value>\n";
+        return 2;
+    }
+
+    if (!std::isfinite(sigma) || sigma <= 0.0) {
+        std::cerr << "Sigma must be a finite positive value.\n";
+        return 2;
+    }
+
+    const std::size_t kernel_size = static_cast<std::size_t>(kernel_size_value);
+    const GrayImage image = read_gray_image(input_path);
+    const lab04::ConvolutionResponse response = lab04::log_response(image, kernel_size, sigma);
+    const double threshold = lab04::automatic_zero_crossing_threshold(response);
+    const GrayImage edges = lab04::zero_crossing_edges(response, threshold);
+
+    write_gray_image(output_path, edges);
+
+    if (!metrics_output_path.empty()) {
+        write_zero_crossing_json(
+            metrics_output_path,
+            input_path,
+            output_path,
+            image,
+            edges,
+            kernel_size,
+            sigma,
+            threshold
+        );
+    }
+
+    return 0;
+}
+
 int run_lab4(const std::vector<std::string>& args) {
     if (args.size() == 1 && args.front() == "--help") {
         print_lab_help(std::cout, "lab4");
@@ -1581,6 +1721,10 @@ int run_lab4(const std::vector<std::string>& args) {
 
     if (!args.empty() && args.front() == "log-filter") {
         return run_lab4_log_filter({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "zero-crossing") {
+        return run_lab4_zero_crossing({args.begin() + 1, args.end()});
     }
 
     std::cerr << "Unknown lab4 command.\n";

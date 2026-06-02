@@ -314,6 +314,19 @@ while IFS= read -r -d '' image_path; do
 
     echo "wrote ${log_path#${repo_root}/}"
 
+    zero_crossing_path="${lab04_output_dir}/${image_stem}_zero_crossing_log_${log_kernel_size}x${log_kernel_size}_sigma${log_sigma_label}.png"
+    zero_crossing_metrics_path="${lab04_output_dir}/${image_stem}_zero_crossing_log_${log_kernel_size}x${log_kernel_size}_sigma${log_sigma_label}.json"
+
+    "${binary}" lab4 zero-crossing \
+        --input "${image_path}" \
+        --output "${zero_crossing_path}" \
+        --kernel-size "${log_kernel_size}" \
+        --sigma "${log_sigma}" \
+        --metrics-output "${zero_crossing_metrics_path}"
+
+    echo "wrote ${zero_crossing_path#${repo_root}/}"
+    echo "wrote ${zero_crossing_metrics_path#${repo_root}/}"
+
     lowpass_kernel_size=3
     threshold_value=20
     threshold_label="t20"
