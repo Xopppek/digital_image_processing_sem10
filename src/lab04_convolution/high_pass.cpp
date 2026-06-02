@@ -114,6 +114,18 @@ Kernel2D make_log_kernel(const std::size_t size, const double sigma) {
     return {size, size, std::move(values)};
 }
 
+Kernel2D make_sharpening_kernel() {
+    constexpr double scale = 1.0 / 5.0;
+
+    return {5, 5, {
+         0.0 * scale, -1.0 * scale, -1.0 * scale, -1.0 * scale,  0.0 * scale,
+        -1.0 * scale,  1.0 * scale,  1.0 * scale,  1.0 * scale, -1.0 * scale,
+        -1.0 * scale,  1.0 * scale,  9.0 * scale,  1.0 * scale, -1.0 * scale,
+        -1.0 * scale,  1.0 * scale,  1.0 * scale,  1.0 * scale, -1.0 * scale,
+         0.0 * scale, -1.0 * scale, -1.0 * scale, -1.0 * scale,  0.0 * scale,
+    }};
+}
+
 GrayImage render_response_magnitude(const ConvolutionResponse& response) {
     require_valid_response(response);
 
@@ -199,6 +211,10 @@ GrayImage log_filter(const GrayImage& image, const std::size_t kernel_size, cons
 
 ConvolutionResponse log_response(const GrayImage& image, const std::size_t kernel_size, const double sigma) {
     return convolve_valid_response(image, make_log_kernel(kernel_size, sigma));
+}
+
+GrayImage sharpening_filter(const GrayImage& image) {
+    return convolve_valid(image, make_sharpening_kernel());
 }
 
 } // namespace dip::lab04

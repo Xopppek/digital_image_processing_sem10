@@ -290,6 +290,14 @@ while IFS= read -r -d '' image_path; do
         echo "wrote ${convolved_path#${repo_root}/}"
     done < <(find "${lab04_kernel_dir}" -maxdepth 1 -type f -iname '*.txt' -print0 | sort -z)
 
+    sharpen_path="${lab04_output_dir}/${image_stem}_sharpen_5x5.png"
+
+    "${binary}" lab4 sharpen \
+        --input "${image_path}" \
+        --output "${sharpen_path}"
+
+    echo "wrote ${sharpen_path#${repo_root}/}"
+
     for laplacian_kernel in four eight; do
         laplacian_path="${lab04_output_dir}/${image_stem}_laplacian_${laplacian_kernel}.png"
 

@@ -45,6 +45,7 @@ void print_general_help(std::ostream& output) {
            << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>]\n"
            << "  dip lab4 log-filter --input <path> --output <path> --kernel-size <odd> --sigma <value>\n"
            << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
+           << "  dip lab4 sharpen --input <path> --output <path>\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -99,6 +100,7 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
                << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>]\n"
                << "  dip lab4 log-filter --input <path> --output <path> --kernel-size <odd> --sigma <value>\n"
                << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
+               << "  dip lab4 sharpen --input <path> --output <path>\n"
                << "  dip lab4 --help\n\n"
                << "Available commands:\n"
                << "  convolve          Apply a 2D spatial convolution kernel and drop boundary cells.\n"
@@ -106,7 +108,8 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
                << "  lowpass-denoise   Add noise, apply an averaging low-pass filter, and save PSNR metrics.\n"
                << "  laplacian         Save a normalized Laplacian response magnitude image.\n"
                << "  log-filter        Save a normalized Laplacian-of-Gaussian response magnitude image.\n"
-               << "  zero-crossing     Save a binary edge map from LoG zero crossings.\n";
+               << "  zero-crossing     Save a binary edge map from LoG zero crossings.\n"
+               << "  sharpen           Apply a fixed 5x5 sharpening filter.\n";
         return;
     }
 
@@ -1697,6 +1700,39 @@ int run_lab4_zero_crossing(const std::vector<std::string>& args) {
     return 0;
 }
 
+int run_lab4_sharpen(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab4 sharpen: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    write_gray_image(output_path, lab04::sharpening_filter(image));
+
+    return 0;
+}
+
 int run_lab4(const std::vector<std::string>& args) {
     if (args.size() == 1 && args.front() == "--help") {
         print_lab_help(std::cout, "lab4");
@@ -1725,6 +1761,10 @@ int run_lab4(const std::vector<std::string>& args) {
 
     if (!args.empty() && args.front() == "zero-crossing") {
         return run_lab4_zero_crossing({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "sharpen") {
+        return run_lab4_sharpen({args.begin() + 1, args.end()});
     }
 
     std::cerr << "Unknown lab4 command.\n";
