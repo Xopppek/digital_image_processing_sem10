@@ -1,0 +1,23 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab04/input/bnw.png",
+  "noisy_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/bnw_gaussian_var400.png",
+  "filtered_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/bnw_gaussian_var400_threshold_lowpass_3x3_t20.png",
+  "noise_type": "gaussian",
+  "variance": 400.000000000000,
+  "seed": 1,
+  "filter": {
+    "type": "thresholded_average_low_pass",
+    "kernel_width": 3,
+    "kernel_height": 3,
+    "threshold": 20.000000000000
+  },
+  "original_width": 1120,
+  "original_height": 1120,
+  "comparison_width": 1118,
+  "comparison_height": 1118,
+  "comparison_method": "center crop original and noisy images to the valid convolution result size",
+  "noisy_mse": 325.048017319453,
+  "noisy_psnr_db": 23.011328395305,
+  "filtered_mse": 270.076589456639,
+  "filtered_psnr_db": 23.815934201845
+}

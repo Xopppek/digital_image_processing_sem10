@@ -1,0 +1,22 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab04/input/pixel_art_invader.png",
+  "noisy_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/pixel_art_invader_impulse_p010.png",
+  "filtered_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/pixel_art_invader_impulse_p010_lowpass_3x3.png",
+  "noise_type": "impulse",
+  "probability": 0.100000000000,
+  "seed": 1,
+  "filter": {
+    "type": "average_low_pass",
+    "kernel_width": 3,
+    "kernel_height": 3
+  },
+  "original_width": 32,
+  "original_height": 32,
+  "comparison_width": 30,
+  "comparison_height": 30,
+  "comparison_method": "center crop original and noisy images to the valid convolution result size",
+  "noisy_mse": 3198.138888888889,
+  "noisy_psnr_db": 13.081830404920,
+  "filtered_mse": 1991.903333333333,
+  "filtered_psnr_db": 15.138121024924
+}

@@ -12,4 +12,10 @@ namespace dip::lab01 {
     std::uint32_t seed
 );
 
+[[nodiscard]] GrayImage add_impulse_noise(
+    const GrayImage& image,
+    double probability,
+    std::uint32_t seed
+);
+
 } // namespace dip::lab01

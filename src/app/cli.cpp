@@ -7,6 +7,9 @@
 #include "lab01_analysis/statistics.hpp"
 #include "lab02_fourier/fft.hpp"
 #include "lab03_geometry/rotation.hpp"
+#include "lab04_convolution/convolution.hpp"
+#include "lab04_convolution/high_pass.hpp"
+#include "lab04_convolution/low_pass.hpp"
 
 #include <array>
 #include <chrono>
@@ -36,6 +39,13 @@ void print_general_help(std::ostream& output) {
            << "  dip lab2 image-spectrum --input <path> --output <path>\n"
            << "  dip lab3 rotate --input <path> --output <path> --angle <degrees> [--method <name>]\n"
            << "  dip lab3 compare --input <path> --output <path> --angle <degrees>\n"
+           << "  dip lab4 convolve --input <path> --output <path> --kernel <path>\n"
+           << "  dip lab4 threshold-lowpass --input <path> --output <path> --kernel-size <odd> --threshold <value>\n"
+           << "  dip lab4 lowpass-denoise --input <path> --noise <gaussian|impulse> --kernel-size <odd> --noisy-output <path> --filtered-output <path> --metrics-output <path> [--threshold <value>]\n"
+           << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>]\n"
+           << "  dip lab4 log-filter --input <path> --output <path> --kernel-size <odd> --sigma <value>\n"
+           << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
+           << "  dip lab4 sharpen --input <path> --output <path>\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -80,6 +90,26 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
                << "Available commands:\n"
                << "  rotate   Rotate a grayscale image using nearest, bilinear, or bicubic interpolation.\n"
                << "  compare  Compare rotation time and round-trip PSNR/MSE for all interpolation methods.\n";
+        return;
+    }
+
+    if (lab == "lab4") {
+        output << "  dip lab4 convolve --input <path> --output <path> --kernel <path>\n"
+               << "  dip lab4 threshold-lowpass --input <path> --output <path> --kernel-size <odd> --threshold <value>\n"
+               << "  dip lab4 lowpass-denoise --input <path> --noise <gaussian|impulse> --kernel-size <odd> --noisy-output <path> --filtered-output <path> --metrics-output <path> [--threshold <value>]\n"
+               << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>]\n"
+               << "  dip lab4 log-filter --input <path> --output <path> --kernel-size <odd> --sigma <value>\n"
+               << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
+               << "  dip lab4 sharpen --input <path> --output <path>\n"
+               << "  dip lab4 --help\n\n"
+               << "Available commands:\n"
+               << "  convolve          Apply a 2D spatial convolution kernel and drop boundary cells.\n"
+               << "  threshold-lowpass Apply an averaging low-pass filter only when the change reaches a threshold.\n"
+               << "  lowpass-denoise   Add noise, apply an averaging low-pass filter, and save PSNR metrics.\n"
+               << "  laplacian         Save a normalized Laplacian response magnitude image.\n"
+               << "  log-filter        Save a normalized Laplacian-of-Gaussian response magnitude image.\n"
+               << "  zero-crossing     Save a binary edge map from LoG zero crossings.\n"
+               << "  sharpen           Apply a fixed 5x5 sharpening filter.\n";
         return;
     }
 
@@ -172,6 +202,50 @@ bool parse_interpolation_method(const std::string& text, lab03::InterpolationMet
 
     if (text == "bicubic") {
         method = lab03::InterpolationMethod::bicubic;
+        return true;
+    }
+
+    return false;
+}
+
+enum class NoiseKind {
+    gaussian,
+    impulse,
+};
+
+bool parse_noise_kind(const std::string& text, NoiseKind& kind) {
+    if (text == "gaussian") {
+        kind = NoiseKind::gaussian;
+        return true;
+    }
+
+    if (text == "impulse") {
+        kind = NoiseKind::impulse;
+        return true;
+    }
+
+    return false;
+}
+
+const char* noise_kind_name(const NoiseKind kind) noexcept {
+    switch (kind) {
+        case NoiseKind::gaussian:
+            return "gaussian";
+        case NoiseKind::impulse:
+            return "impulse";
+    }
+
+    return "unknown";
+}
+
+bool parse_laplacian_kernel(const std::string& text, lab04::LaplacianKernel& kernel) {
+    if (text == "four") {
+        kernel = lab04::LaplacianKernel::four_neighbor;
+        return true;
+    }
+
+    if (text == "eight") {
+        kernel = lab04::LaplacianKernel::eight_neighbor;
         return true;
     }
 
@@ -340,6 +414,14 @@ void write_psnr_json(
            << "}\n";
 }
 
+void write_psnr_value(std::ostream& output, const double value) {
+    if (std::isinf(value)) {
+        output << "\"inf\"";
+    } else {
+        output << value;
+    }
+}
+
 std::vector<double> read_signal_samples(const std::string& input_path) {
     std::ifstream input(input_path);
     if (!input) {
@@ -371,6 +453,61 @@ std::vector<double> read_signal_samples(const std::string& input_path) {
     return samples;
 }
 
+lab04::Kernel2D read_kernel_file(const std::string& input_path) {
+    std::ifstream input(input_path);
+    if (!input) {
+        throw std::runtime_error("failed to open kernel file: " + input_path);
+    }
+
+    std::vector<double> values;
+    std::size_t width = 0;
+    std::size_t height = 0;
+    std::string line;
+
+    while (std::getline(input, line)) {
+        for (char& symbol : line) {
+            if (symbol == ',' || symbol == ';') {
+                symbol = ' ';
+            }
+        }
+
+        std::istringstream line_stream(line);
+        std::vector<double> row;
+        double value = 0.0;
+
+        while (line_stream >> value) {
+            if (!std::isfinite(value)) {
+                throw std::runtime_error("kernel file contains a non-finite number: " + input_path);
+            }
+
+            row.push_back(value);
+        }
+
+        if (!line_stream.eof()) {
+            throw std::runtime_error("kernel file contains an invalid number: " + input_path);
+        }
+
+        if (row.empty()) {
+            continue;
+        }
+
+        if (width == 0) {
+            width = row.size();
+        } else if (row.size() != width) {
+            throw std::runtime_error("kernel rows must have the same length: " + input_path);
+        }
+
+        values.insert(values.end(), row.begin(), row.end());
+        ++height;
+    }
+
+    if (width == 0 || height == 0) {
+        throw std::runtime_error("kernel file contains no values: " + input_path);
+    }
+
+    return {width, height, values};
+}
+
 GrayImage center_crop_or_pad(
     const GrayImage& image,
     const std::size_t width,
@@ -398,6 +535,112 @@ GrayImage center_crop_or_pad(
     }
 
     return result;
+}
+
+void write_lowpass_denoise_json(
+    const std::string& output_path,
+    const std::string& input_path,
+    const std::string& noisy_output_path,
+    const std::string& filtered_output_path,
+    const NoiseKind noise_kind,
+    const std::string& noise_parameter_name,
+    const double noise_parameter_value,
+    const std::uint32_t seed,
+    const std::size_t kernel_size,
+    const bool has_filter_threshold,
+    const double filter_threshold,
+    const GrayImage& original,
+    const GrayImage& original_crop,
+    const GrayImage& noisy_crop,
+    const GrayImage& filtered
+) {
+    std::ofstream output(output_path);
+    if (!output) {
+        throw std::runtime_error("failed to open output file: " + output_path);
+    }
+
+    const double noisy_mse = lab01::mean_squared_error(original_crop, noisy_crop);
+    const double noisy_psnr = lab01::peak_signal_to_noise_ratio(original_crop, noisy_crop);
+    const double filtered_mse = lab01::mean_squared_error(original_crop, filtered);
+    const double filtered_psnr = lab01::peak_signal_to_noise_ratio(original_crop, filtered);
+
+    output << std::fixed << std::setprecision(12);
+    output << "{\n"
+           << "  \"input\": \"" << input_path << "\",\n"
+           << "  \"noisy_output\": \"" << noisy_output_path << "\",\n"
+           << "  \"filtered_output\": \"" << filtered_output_path << "\",\n"
+           << "  \"noise_type\": \"" << noise_kind_name(noise_kind) << "\",\n"
+           << "  \"" << noise_parameter_name << "\": " << noise_parameter_value << ",\n"
+           << "  \"seed\": " << seed << ",\n"
+           << "  \"filter\": {\n"
+           << "    \"type\": \"" << (has_filter_threshold ? "thresholded_average_low_pass" : "average_low_pass") << "\",\n"
+           << "    \"kernel_width\": " << kernel_size << ",\n"
+           << "    \"kernel_height\": " << kernel_size;
+    if (has_filter_threshold) {
+        output << ",\n"
+               << "    \"threshold\": " << filter_threshold << "\n";
+    } else {
+        output << "\n";
+    }
+    output << "  },\n"
+           << "  \"original_width\": " << original.width() << ",\n"
+           << "  \"original_height\": " << original.height() << ",\n"
+           << "  \"comparison_width\": " << filtered.width() << ",\n"
+           << "  \"comparison_height\": " << filtered.height() << ",\n"
+           << "  \"comparison_method\": \"center crop original and noisy images to the valid convolution result size\",\n"
+           << "  \"noisy_mse\": " << noisy_mse << ",\n"
+           << "  \"noisy_psnr_db\": ";
+    write_psnr_value(output, noisy_psnr);
+    output << ",\n"
+           << "  \"filtered_mse\": " << filtered_mse << ",\n"
+           << "  \"filtered_psnr_db\": ";
+    write_psnr_value(output, filtered_psnr);
+    output << "\n"
+           << "}\n";
+}
+
+std::size_t count_edge_pixels(const GrayImage& image) {
+    std::size_t count = 0;
+    for (const GrayImage::Pixel pixel : image.pixels()) {
+        if (pixel != 0) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+void write_zero_crossing_json(
+    const std::string& output_path,
+    const std::string& input_path,
+    const std::string& edge_output_path,
+    const GrayImage& original,
+    const GrayImage& edges,
+    const std::size_t kernel_size,
+    const double sigma,
+    const double threshold
+) {
+    std::ofstream output(output_path);
+    if (!output) {
+        throw std::runtime_error("failed to open output file: " + output_path);
+    }
+
+    output << std::fixed << std::setprecision(12);
+    output << "{\n"
+           << "  \"input\": \"" << input_path << "\",\n"
+           << "  \"edge_output\": \"" << edge_output_path << "\",\n"
+           << "  \"method\": \"LoG zero crossing\",\n"
+           << "  \"kernel_width\": " << kernel_size << ",\n"
+           << "  \"kernel_height\": " << kernel_size << ",\n"
+           << "  \"sigma\": " << sigma << ",\n"
+           << "  \"threshold\": " << threshold << ",\n"
+           << "  \"threshold_method\": \"3 * sum(abs(I_e)) / (4 * W * H)\",\n"
+           << "  \"original_width\": " << original.width() << ",\n"
+           << "  \"original_height\": " << original.height() << ",\n"
+           << "  \"edge_width\": " << edges.width() << ",\n"
+           << "  \"edge_height\": " << edges.height() << ",\n"
+           << "  \"edge_pixels\": " << count_edge_pixels(edges) << "\n"
+           << "}\n";
 }
 
 double elapsed_milliseconds(const std::chrono::steady_clock::time_point begin) {
@@ -949,6 +1192,586 @@ int run_lab3(const std::vector<std::string>& args) {
     return 2;
 }
 
+int run_lab4_convolve(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string kernel_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--kernel" && i + 1 < args.size()) {
+            kernel_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab4 convolve: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (kernel_path.empty()) {
+        std::cerr << "Missing required option: --kernel <path>\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    const lab04::Kernel2D kernel = read_kernel_file(kernel_path);
+    write_gray_image(output_path, lab04::convolve_valid(image, kernel));
+
+    return 0;
+}
+
+int run_lab4_threshold_lowpass(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    int kernel_size_value = 0;
+    bool has_kernel_size = false;
+    double threshold = 0.0;
+    bool has_threshold = false;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--kernel-size" && i + 1 < args.size()) {
+            if (!parse_int(args[i + 1], kernel_size_value)) {
+                std::cerr << "Invalid integer value for --kernel-size: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_kernel_size = true;
+            ++i;
+        } else if (args[i] == "--threshold" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], threshold)) {
+                std::cerr << "Invalid value for --threshold: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_threshold = true;
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab4 threshold-lowpass: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (!has_kernel_size) {
+        std::cerr << "Missing required option: --kernel-size <odd>\n";
+        return 2;
+    }
+
+    if (kernel_size_value <= 0 || kernel_size_value % 2 == 0) {
+        std::cerr << "Kernel size must be a positive odd integer.\n";
+        return 2;
+    }
+
+    if (!has_threshold) {
+        std::cerr << "Missing required option: --threshold <value>\n";
+        return 2;
+    }
+
+    if (!std::isfinite(threshold) || threshold < 0.0) {
+        std::cerr << "Threshold must be a finite non-negative value.\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    write_gray_image(
+        output_path,
+        lab04::thresholded_average_filter(image, static_cast<std::size_t>(kernel_size_value), threshold)
+    );
+
+    return 0;
+}
+
+int run_lab4_lowpass_denoise(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string noisy_output_path;
+    std::string filtered_output_path;
+    std::string metrics_output_path;
+    NoiseKind noise_kind = NoiseKind::gaussian;
+    bool has_noise_kind = false;
+    double variance = 0.0;
+    bool has_variance = false;
+    double probability = 0.0;
+    bool has_probability = false;
+    int kernel_size_value = 0;
+    bool has_kernel_size = false;
+    double threshold = 0.0;
+    bool has_threshold = false;
+    std::uint32_t seed = 1;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--noise" && i + 1 < args.size()) {
+            if (!parse_noise_kind(args[i + 1], noise_kind)) {
+                std::cerr << "Invalid noise type for --noise: " << args[i + 1] << '\n';
+                std::cerr << "Expected one of: gaussian, impulse.\n";
+                return 2;
+            }
+            has_noise_kind = true;
+            ++i;
+        } else if (args[i] == "--kernel-size" && i + 1 < args.size()) {
+            if (!parse_int(args[i + 1], kernel_size_value)) {
+                std::cerr << "Invalid integer value for --kernel-size: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_kernel_size = true;
+            ++i;
+        } else if (args[i] == "--noisy-output" && i + 1 < args.size()) {
+            noisy_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--filtered-output" && i + 1 < args.size()) {
+            filtered_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--metrics-output" && i + 1 < args.size()) {
+            metrics_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--variance" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], variance)) {
+                std::cerr << "Invalid value for --variance: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_variance = true;
+            ++i;
+        } else if (args[i] == "--probability" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], probability)) {
+                std::cerr << "Invalid value for --probability: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_probability = true;
+            ++i;
+        } else if (args[i] == "--threshold" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], threshold)) {
+                std::cerr << "Invalid value for --threshold: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_threshold = true;
+            ++i;
+        } else if (args[i] == "--seed" && i + 1 < args.size()) {
+            if (!parse_seed(args[i + 1], seed)) {
+                std::cerr << "Invalid value for --seed: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab4 lowpass-denoise: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (!has_noise_kind) {
+        std::cerr << "Missing required option: --noise <gaussian|impulse>\n";
+        return 2;
+    }
+
+    if (!has_kernel_size) {
+        std::cerr << "Missing required option: --kernel-size <odd>\n";
+        return 2;
+    }
+
+    if (kernel_size_value <= 0 || kernel_size_value % 2 == 0) {
+        std::cerr << "Kernel size must be a positive odd integer.\n";
+        return 2;
+    }
+
+    if (noisy_output_path.empty()) {
+        std::cerr << "Missing required option: --noisy-output <path>\n";
+        return 2;
+    }
+
+    if (filtered_output_path.empty()) {
+        std::cerr << "Missing required option: --filtered-output <path>\n";
+        return 2;
+    }
+
+    if (metrics_output_path.empty()) {
+        std::cerr << "Missing required option: --metrics-output <path>\n";
+        return 2;
+    }
+
+    if (has_threshold && (!std::isfinite(threshold) || threshold < 0.0)) {
+        std::cerr << "Threshold must be a finite non-negative value.\n";
+        return 2;
+    }
+
+    const GrayImage original = read_gray_image(input_path);
+    GrayImage noisy;
+    std::string noise_parameter_name;
+    double noise_parameter_value = 0.0;
+
+    if (noise_kind == NoiseKind::gaussian) {
+        if (!has_variance) {
+            std::cerr << "Missing required option for gaussian noise: --variance <value>\n";
+            return 2;
+        }
+
+        if (!std::isfinite(variance) || variance < 0.0) {
+            std::cerr << "Variance must be a finite non-negative value.\n";
+            return 2;
+        }
+
+        noisy = lab01::add_gaussian_noise(original, variance, seed);
+        noise_parameter_name = "variance";
+        noise_parameter_value = variance;
+    } else {
+        if (!has_probability) {
+            std::cerr << "Missing required option for impulse noise: --probability <value>\n";
+            return 2;
+        }
+
+        if (!std::isfinite(probability) || probability < 0.0 || probability > 1.0) {
+            std::cerr << "Probability must be in the [0, 1] range.\n";
+            return 2;
+        }
+
+        noisy = lab01::add_impulse_noise(original, probability, seed);
+        noise_parameter_name = "probability";
+        noise_parameter_value = probability;
+    }
+
+    const std::size_t kernel_size = static_cast<std::size_t>(kernel_size_value);
+    const GrayImage filtered = has_threshold
+        ? lab04::thresholded_average_filter(noisy, kernel_size, threshold)
+        : lab04::average_low_pass_filter(noisy, kernel_size);
+    const GrayImage original_crop = center_crop_or_pad(original, filtered.width(), filtered.height());
+    const GrayImage noisy_crop = center_crop_or_pad(noisy, filtered.width(), filtered.height());
+
+    write_gray_image(noisy_output_path, noisy);
+    write_gray_image(filtered_output_path, filtered);
+    write_lowpass_denoise_json(
+        metrics_output_path,
+        input_path,
+        noisy_output_path,
+        filtered_output_path,
+        noise_kind,
+        noise_parameter_name,
+        noise_parameter_value,
+        seed,
+        kernel_size,
+        has_threshold,
+        threshold,
+        original,
+        original_crop,
+        noisy_crop,
+        filtered
+    );
+
+    return 0;
+}
+
+int run_lab4_laplacian(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    lab04::LaplacianKernel kernel = lab04::LaplacianKernel::four_neighbor;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--kernel" && i + 1 < args.size()) {
+            if (!parse_laplacian_kernel(args[i + 1], kernel)) {
+                std::cerr << "Invalid Laplacian kernel for --kernel: " << args[i + 1] << '\n';
+                std::cerr << "Expected one of: four, eight.\n";
+                return 2;
+            }
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab4 laplacian: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    write_gray_image(output_path, lab04::laplacian_filter(image, kernel));
+
+    return 0;
+}
+
+int run_lab4_log_filter(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    int kernel_size_value = 0;
+    bool has_kernel_size = false;
+    double sigma = 0.0;
+    bool has_sigma = false;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--kernel-size" && i + 1 < args.size()) {
+            if (!parse_int(args[i + 1], kernel_size_value)) {
+                std::cerr << "Invalid integer value for --kernel-size: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_kernel_size = true;
+            ++i;
+        } else if (args[i] == "--sigma" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], sigma)) {
+                std::cerr << "Invalid value for --sigma: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_sigma = true;
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab4 log-filter: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (!has_kernel_size) {
+        std::cerr << "Missing required option: --kernel-size <odd>\n";
+        return 2;
+    }
+
+    if (kernel_size_value <= 0 || kernel_size_value % 2 == 0) {
+        std::cerr << "Kernel size must be a positive odd integer.\n";
+        return 2;
+    }
+
+    if (!has_sigma) {
+        std::cerr << "Missing required option: --sigma <value>\n";
+        return 2;
+    }
+
+    if (!std::isfinite(sigma) || sigma <= 0.0) {
+        std::cerr << "Sigma must be a finite positive value.\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    write_gray_image(
+        output_path,
+        lab04::log_filter(image, static_cast<std::size_t>(kernel_size_value), sigma)
+    );
+
+    return 0;
+}
+
+int run_lab4_zero_crossing(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string metrics_output_path;
+    int kernel_size_value = 0;
+    bool has_kernel_size = false;
+    double sigma = 0.0;
+    bool has_sigma = false;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--metrics-output" && i + 1 < args.size()) {
+            metrics_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--kernel-size" && i + 1 < args.size()) {
+            if (!parse_int(args[i + 1], kernel_size_value)) {
+                std::cerr << "Invalid integer value for --kernel-size: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_kernel_size = true;
+            ++i;
+        } else if (args[i] == "--sigma" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], sigma)) {
+                std::cerr << "Invalid value for --sigma: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_sigma = true;
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab4 zero-crossing: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (!has_kernel_size) {
+        std::cerr << "Missing required option: --kernel-size <odd>\n";
+        return 2;
+    }
+
+    if (kernel_size_value <= 0 || kernel_size_value % 2 == 0) {
+        std::cerr << "Kernel size must be a positive odd integer.\n";
+        return 2;
+    }
+
+    if (!has_sigma) {
+        std::cerr << "Missing required option: --sigma <value>\n";
+        return 2;
+    }
+
+    if (!std::isfinite(sigma) || sigma <= 0.0) {
+        std::cerr << "Sigma must be a finite positive value.\n";
+        return 2;
+    }
+
+    const std::size_t kernel_size = static_cast<std::size_t>(kernel_size_value);
+    const GrayImage image = read_gray_image(input_path);
+    const lab04::ConvolutionResponse response = lab04::log_response(image, kernel_size, sigma);
+    const double threshold = lab04::automatic_zero_crossing_threshold(response);
+    const GrayImage edges = lab04::zero_crossing_edges(response, threshold);
+
+    write_gray_image(output_path, edges);
+
+    if (!metrics_output_path.empty()) {
+        write_zero_crossing_json(
+            metrics_output_path,
+            input_path,
+            output_path,
+            image,
+            edges,
+            kernel_size,
+            sigma,
+            threshold
+        );
+    }
+
+    return 0;
+}
+
+int run_lab4_sharpen(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab4 sharpen: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    write_gray_image(output_path, lab04::sharpening_filter(image));
+
+    return 0;
+}
+
+int run_lab4(const std::vector<std::string>& args) {
+    if (args.size() == 1 && args.front() == "--help") {
+        print_lab_help(std::cout, "lab4");
+        return 0;
+    }
+
+    if (!args.empty() && args.front() == "convolve") {
+        return run_lab4_convolve({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "threshold-lowpass") {
+        return run_lab4_threshold_lowpass({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "lowpass-denoise") {
+        return run_lab4_lowpass_denoise({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "laplacian") {
+        return run_lab4_laplacian({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "log-filter") {
+        return run_lab4_log_filter({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "zero-crossing") {
+        return run_lab4_zero_crossing({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "sharpen") {
+        return run_lab4_sharpen({args.begin() + 1, args.end()});
+    }
+
+    std::cerr << "Unknown lab4 command.\n";
+    print_lab_help(std::cerr, "lab4");
+    return 2;
+}
+
 } // namespace
 
 int run_cli(const int argc, char** argv) {
@@ -983,6 +1806,10 @@ int run_cli(const int argc, char** argv) {
 
         if (command == "lab3") {
             return run_lab3(args);
+        }
+
+        if (command == "lab4") {
+            return run_lab4(args);
         }
 
         if (is_lab_command(command)) {

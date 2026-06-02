@@ -23,6 +23,9 @@ add_executable(dip
     src/lab01_analysis/statistics.cpp
     src/lab02_fourier/fft.cpp
     src/lab03_geometry/rotation.cpp
+    src/lab04_convolution/convolution.cpp
+    src/lab04_convolution/high_pass.cpp
+    src/lab04_convolution/low_pass.cpp
 )
 
 target_include_directories(dip
