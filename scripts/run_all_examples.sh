@@ -4,6 +4,101 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 binary="${repo_root}/build/dip"
 
+print_usage() {
+    cat <<EOF
+Usage:
+  scripts/run_all_examples.sh [lab...]
+  scripts/run_all_examples.sh --lab <lab> [--lab <lab> ...]
+
+Labs:
+  lab1, lab01, 1
+  lab2, lab02, 2
+  lab3, lab03, 3
+  lab4, lab04, 4
+  all
+
+With no lab argument, all implemented labs are run.
+EOF
+}
+
+normalize_lab() {
+    case "$1" in
+        all)
+            echo "all"
+            ;;
+        1|lab1|lab01)
+            echo "lab01"
+            ;;
+        2|lab2|lab02)
+            echo "lab02"
+            ;;
+        3|lab3|lab03)
+            echo "lab03"
+            ;;
+        4|lab4|lab04)
+            echo "lab04"
+            ;;
+        *)
+            echo "Unknown lab selector: $1" >&2
+            print_usage >&2
+            exit 2
+            ;;
+    esac
+}
+
+declare -A selected_labs=()
+selected_lab_args=()
+
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        --lab)
+            if [[ "$#" -lt 2 ]]; then
+                echo "Missing value for --lab." >&2
+                print_usage >&2
+                exit 2
+            fi
+            selected_lab_args+=("$2")
+            shift 2
+            ;;
+        --lab=*)
+            selected_lab_args+=("${1#--lab=}")
+            shift
+            ;;
+        *)
+            selected_lab_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+select_all_labs() {
+    selected_labs["lab01"]=1
+    selected_labs["lab02"]=1
+    selected_labs["lab03"]=1
+    selected_labs["lab04"]=1
+}
+
+if [[ "${#selected_lab_args[@]}" -eq 0 ]]; then
+    select_all_labs
+else
+    for lab_arg in "${selected_lab_args[@]}"; do
+        normalized_lab="$(normalize_lab "${lab_arg}")"
+        if [[ "${normalized_lab}" == "all" ]]; then
+            select_all_labs
+        else
+            selected_labs["${normalized_lab}"]=1
+        fi
+    done
+fi
+
+should_run() {
+    [[ "${selected_labs[$1]:-0}" -eq 1 ]]
+}
+
 if [[ ! -x "${binary}" ]]; then
     echo "Executable not found: ${binary}" >&2
     echo "Build the project with: cmake -S . -B build && cmake --build build" >&2
@@ -12,6 +107,7 @@ fi
 
 found_any=0
 
+if should_run "lab01"; then
 input_dir="${repo_root}/images/lab01/input"
 output_dir="${repo_root}/images/lab01/output"
 mkdir -p "${output_dir}"
@@ -83,7 +179,9 @@ while IFS= read -r -d '' image_path; do
 done < <(find "${input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
+fi
 
+if should_run "lab02"; then
 lab02_output_dir="${repo_root}/images/lab02/output"
 lab02_input_dir="${repo_root}/images/lab02/input"
 mkdir -p "${lab02_output_dir}"
@@ -127,7 +225,9 @@ while IFS= read -r -d '' image_path; do
 done < <(find "${lab02_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
+fi
 
+if should_run "lab03"; then
 lab03_output_dir="${repo_root}/images/lab03/output"
 lab03_input_dir="${repo_root}/images/lab03/input"
 mkdir -p "${lab03_output_dir}"
@@ -164,7 +264,155 @@ while IFS= read -r -d '' image_path; do
 done < <(find "${lab03_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
+fi
+
+if should_run "lab04"; then
+lab04_output_dir="${repo_root}/images/lab04/output"
+lab04_input_dir="${repo_root}/images/lab04/input"
+lab04_kernel_dir="${lab04_input_dir}/kernels"
+mkdir -p "${lab04_output_dir}"
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+
+    while IFS= read -r -d '' kernel_path; do
+        kernel_name="$(basename "${kernel_path}")"
+        kernel_stem="${kernel_name%.*}"
+        convolved_path="${lab04_output_dir}/${image_stem}_convolve_${kernel_stem}.png"
+
+        "${binary}" lab4 convolve \
+            --input "${image_path}" \
+            --output "${convolved_path}" \
+            --kernel "${kernel_path}"
+
+        echo "wrote ${convolved_path#${repo_root}/}"
+    done < <(find "${lab04_kernel_dir}" -maxdepth 1 -type f -iname '*.txt' -print0 | sort -z)
+
+    for laplacian_kernel in four eight; do
+        laplacian_path="${lab04_output_dir}/${image_stem}_laplacian_${laplacian_kernel}.png"
+
+        "${binary}" lab4 laplacian \
+            --input "${image_path}" \
+            --output "${laplacian_path}" \
+            --kernel "${laplacian_kernel}"
+
+        echo "wrote ${laplacian_path#${repo_root}/}"
+    done
+
+    log_kernel_size=7
+    log_sigma=1.4
+    log_sigma_label="1p4"
+    log_path="${lab04_output_dir}/${image_stem}_log_${log_kernel_size}x${log_kernel_size}_sigma${log_sigma_label}.png"
+
+    "${binary}" lab4 log-filter \
+        --input "${image_path}" \
+        --output "${log_path}" \
+        --kernel-size "${log_kernel_size}" \
+        --sigma "${log_sigma}"
+
+    echo "wrote ${log_path#${repo_root}/}"
+
+    lowpass_kernel_size=3
+    threshold_value=20
+    threshold_label="t20"
+    gaussian_variance=400
+    impulse_probability=0.05
+    impulse_label="p005"
+
+    case "${image_stem}" in
+        flower)
+            gaussian_variance=900
+            impulse_probability=0.04
+            impulse_label="p004"
+            ;;
+        imagesample)
+            gaussian_variance=625
+            impulse_probability=0.06
+            impulse_label="p006"
+            ;;
+        pixel_art_invader)
+            gaussian_variance=225
+            impulse_probability=0.10
+            impulse_label="p010"
+            ;;
+    esac
+
+    gaussian_noisy_path="${lab04_output_dir}/${image_stem}_gaussian_var${gaussian_variance}.png"
+    gaussian_filtered_path="${lab04_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_lowpass_${lowpass_kernel_size}x${lowpass_kernel_size}.png"
+    gaussian_metrics_path="${lab04_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_lowpass_${lowpass_kernel_size}x${lowpass_kernel_size}_psnr.json"
+
+    "${binary}" lab4 lowpass-denoise \
+        --input "${image_path}" \
+        --noise gaussian \
+        --variance "${gaussian_variance}" \
+        --kernel-size "${lowpass_kernel_size}" \
+        --seed 1 \
+        --noisy-output "${gaussian_noisy_path}" \
+        --filtered-output "${gaussian_filtered_path}" \
+        --metrics-output "${gaussian_metrics_path}"
+
+    echo "wrote ${gaussian_noisy_path#${repo_root}/}"
+    echo "wrote ${gaussian_filtered_path#${repo_root}/}"
+    echo "wrote ${gaussian_metrics_path#${repo_root}/}"
+
+    gaussian_threshold_filtered_path="${lab04_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_threshold_lowpass_${lowpass_kernel_size}x${lowpass_kernel_size}_${threshold_label}.png"
+    gaussian_threshold_metrics_path="${lab04_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_threshold_lowpass_${lowpass_kernel_size}x${lowpass_kernel_size}_${threshold_label}_psnr.json"
+
+    "${binary}" lab4 lowpass-denoise \
+        --input "${image_path}" \
+        --noise gaussian \
+        --variance "${gaussian_variance}" \
+        --kernel-size "${lowpass_kernel_size}" \
+        --threshold "${threshold_value}" \
+        --seed 1 \
+        --noisy-output "${gaussian_noisy_path}" \
+        --filtered-output "${gaussian_threshold_filtered_path}" \
+        --metrics-output "${gaussian_threshold_metrics_path}"
+
+    echo "wrote ${gaussian_threshold_filtered_path#${repo_root}/}"
+    echo "wrote ${gaussian_threshold_metrics_path#${repo_root}/}"
+
+    impulse_noisy_path="${lab04_output_dir}/${image_stem}_impulse_${impulse_label}.png"
+    impulse_filtered_path="${lab04_output_dir}/${image_stem}_impulse_${impulse_label}_lowpass_${lowpass_kernel_size}x${lowpass_kernel_size}.png"
+    impulse_metrics_path="${lab04_output_dir}/${image_stem}_impulse_${impulse_label}_lowpass_${lowpass_kernel_size}x${lowpass_kernel_size}_psnr.json"
+
+    "${binary}" lab4 lowpass-denoise \
+        --input "${image_path}" \
+        --noise impulse \
+        --probability "${impulse_probability}" \
+        --kernel-size "${lowpass_kernel_size}" \
+        --seed 1 \
+        --noisy-output "${impulse_noisy_path}" \
+        --filtered-output "${impulse_filtered_path}" \
+        --metrics-output "${impulse_metrics_path}"
+
+    echo "wrote ${impulse_noisy_path#${repo_root}/}"
+    echo "wrote ${impulse_filtered_path#${repo_root}/}"
+    echo "wrote ${impulse_metrics_path#${repo_root}/}"
+
+    impulse_threshold_filtered_path="${lab04_output_dir}/${image_stem}_impulse_${impulse_label}_threshold_lowpass_${lowpass_kernel_size}x${lowpass_kernel_size}_${threshold_label}.png"
+    impulse_threshold_metrics_path="${lab04_output_dir}/${image_stem}_impulse_${impulse_label}_threshold_lowpass_${lowpass_kernel_size}x${lowpass_kernel_size}_${threshold_label}_psnr.json"
+
+    "${binary}" lab4 lowpass-denoise \
+        --input "${image_path}" \
+        --noise impulse \
+        --probability "${impulse_probability}" \
+        --kernel-size "${lowpass_kernel_size}" \
+        --threshold "${threshold_value}" \
+        --seed 1 \
+        --noisy-output "${impulse_noisy_path}" \
+        --filtered-output "${impulse_threshold_filtered_path}" \
+        --metrics-output "${impulse_threshold_metrics_path}"
+
+    echo "wrote ${impulse_threshold_filtered_path#${repo_root}/}"
+    echo "wrote ${impulse_threshold_metrics_path#${repo_root}/}"
+done < <(find "${lab04_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+fi
 
 if [[ "${found_any}" -eq 0 ]]; then
-    echo "No example inputs found under images/lab01/input, images/lab02/input, or images/lab03/input."
+    echo "No example inputs found for the selected labs."
 fi

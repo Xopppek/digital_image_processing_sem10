@@ -50,7 +50,7 @@ GrayImage::Pixel clamp_to_pixel(const double value) {
     return static_cast<GrayImage::Pixel>(std::clamp(rounded, 0, 255));
 }
 
-} // namespace
+}
 
 GrayImage add_gaussian_noise(
     const GrayImage& image,
@@ -61,8 +61,8 @@ GrayImage add_gaussian_noise(
         throw std::invalid_argument("gaussian noise requires a non-empty image");
     }
 
-    if (variance < 0.0) {
-        throw std::invalid_argument("gaussian noise variance must be non-negative");
+    if (!std::isfinite(variance) || variance < 0.0) {
+        throw std::invalid_argument("gaussian noise variance must be a finite non-negative value");
     }
 
     const double sigma = std::sqrt(variance);
@@ -73,6 +73,37 @@ GrayImage add_gaussian_noise(
     for (const GrayImage::Pixel pixel : image.pixels()) {
         const double noise = sigma * generator.next_standard_normal();
         pixels.push_back(clamp_to_pixel(static_cast<double>(pixel) + noise));
+    }
+
+    return GrayImage(image.width(), image.height(), std::move(pixels));
+}
+
+GrayImage add_impulse_noise(
+    const GrayImage& image,
+    const double probability,
+    const std::uint32_t seed
+) {
+    if (image.empty()) {
+        throw std::invalid_argument("impulse noise requires a non-empty image");
+    }
+
+    if (!std::isfinite(probability) || probability < 0.0 || probability > 1.0) {
+        throw std::invalid_argument("impulse noise probability must be in the [0, 1] range");
+    }
+
+    std::mt19937 random_engine(seed);
+    std::uniform_real_distribution<double> unit_distribution(0.0, 1.0);
+
+    std::vector<GrayImage::Pixel> pixels;
+    pixels.reserve(image.size());
+
+    for (const GrayImage::Pixel pixel : image.pixels()) {
+        if (unit_distribution(random_engine) >= probability) {
+            pixels.push_back(pixel);
+            continue;
+        }
+
+        pixels.push_back(unit_distribution(random_engine) < 0.5 ? GrayImage::Pixel{0} : GrayImage::Pixel{255});
     }
 
     return GrayImage(image.width(), image.height(), std::move(pixels));
