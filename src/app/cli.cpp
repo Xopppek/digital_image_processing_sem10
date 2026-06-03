@@ -10,6 +10,7 @@
 #include "lab04_convolution/convolution.hpp"
 #include "lab04_convolution/high_pass.hpp"
 #include "lab04_convolution/low_pass.hpp"
+#include "lab05_nonlinear/rank_filter.hpp"
 
 #include <array>
 #include <chrono>
@@ -46,6 +47,7 @@ void print_general_help(std::ostream& output) {
            << "  dip lab4 log-filter --input <path> --output <path> --kernel-size <odd> --sigma <value>\n"
            << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
            << "  dip lab4 sharpen --input <path> --output <path> [--kernel-size <odd>] [--amount <value>]\n"
+           << "  dip lab5 rank --input <path> --output <path> --aperture <path> --rank <index|min|median|max>\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -110,6 +112,14 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
                << "  log-filter        Save a normalized Laplacian-of-Gaussian response magnitude image.\n"
                << "  zero-crossing     Save a binary edge map from LoG zero crossings.\n"
                << "  sharpen           Apply a sharpening filter of a chosen odd size.\n";
+        return;
+    }
+
+    if (lab == "lab5") {
+        output << "  dip lab5 rank --input <path> --output <path> --aperture <path> --rank <index|min|median|max>\n"
+               << "  dip lab5 --help\n\n"
+               << "Available commands:\n"
+               << "  rank  Apply rank filtering with an arbitrary aperture mask.\n";
         return;
     }
 
@@ -506,6 +516,95 @@ lab04::Kernel2D read_kernel_file(const std::string& input_path) {
     }
 
     return {width, height, values};
+}
+
+lab05::Aperture read_aperture_file(const std::string& input_path) {
+    std::ifstream input(input_path);
+    if (!input) {
+        throw std::runtime_error("failed to open aperture file: " + input_path);
+    }
+
+    std::vector<std::uint8_t> mask;
+    std::size_t width = 0;
+    std::size_t height = 0;
+    std::string line;
+
+    while (std::getline(input, line)) {
+        for (char& symbol : line) {
+            if (symbol == ',' || symbol == ';') {
+                symbol = ' ';
+            }
+        }
+
+        std::istringstream line_stream(line);
+        std::vector<std::uint8_t> row;
+        int value = 0;
+
+        while (line_stream >> value) {
+            if (value != 0 && value != 1) {
+                throw std::runtime_error("aperture file values must be 0 or 1: " + input_path);
+            }
+
+            row.push_back(static_cast<std::uint8_t>(value));
+        }
+
+        if (!line_stream.eof()) {
+            throw std::runtime_error("aperture file contains an invalid value: " + input_path);
+        }
+
+        if (row.empty()) {
+            continue;
+        }
+
+        if (width == 0) {
+            width = row.size();
+        } else if (row.size() != width) {
+            throw std::runtime_error("aperture rows must have the same length: " + input_path);
+        }
+
+        mask.insert(mask.end(), row.begin(), row.end());
+        ++height;
+    }
+
+    if (width == 0 || height == 0) {
+        throw std::runtime_error("aperture file contains no values: " + input_path);
+    }
+
+    return {width, height, mask};
+}
+
+bool parse_rank(const std::string& text, const std::size_t active_size, std::size_t& rank) {
+    if (active_size == 0) {
+        return false;
+    }
+
+    if (text == "min") {
+        rank = 0;
+        return true;
+    }
+
+    if (text == "median") {
+        rank = active_size / 2;
+        return true;
+    }
+
+    if (text == "max") {
+        rank = active_size - 1;
+        return true;
+    }
+
+    try {
+        std::size_t parsed = 0;
+        const unsigned long long value = std::stoull(text, &parsed);
+        if (parsed != text.size() || value >= active_size) {
+            return false;
+        }
+
+        rank = static_cast<std::size_t>(value);
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
 }
 
 GrayImage center_crop_or_pad(
@@ -1816,6 +1915,81 @@ int run_lab4(const std::vector<std::string>& args) {
     return 2;
 }
 
+int run_lab5_rank(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string aperture_path;
+    std::string rank_text;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--aperture" && i + 1 < args.size()) {
+            aperture_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--rank" && i + 1 < args.size()) {
+            rank_text = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab5 rank: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (aperture_path.empty()) {
+        std::cerr << "Missing required option: --aperture <path>\n";
+        return 2;
+    }
+
+    if (rank_text.empty()) {
+        std::cerr << "Missing required option: --rank <index|min|median|max>\n";
+        return 2;
+    }
+
+    const lab05::Aperture aperture = read_aperture_file(aperture_path);
+    const std::size_t active_size = lab05::active_aperture_size(aperture);
+    std::size_t rank = 0;
+    if (!parse_rank(rank_text, active_size, rank)) {
+        std::cerr << "Rank must be min, median, max, or an integer in [0, "
+                  << (active_size == 0 ? 0 : active_size - 1) << "].\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    write_gray_image(output_path, lab05::rank_filter_valid(image, aperture, rank));
+
+    return 0;
+}
+
+int run_lab5(const std::vector<std::string>& args) {
+    if (args.size() == 1 && args.front() == "--help") {
+        print_lab_help(std::cout, "lab5");
+        return 0;
+    }
+
+    if (!args.empty() && args.front() == "rank") {
+        return run_lab5_rank({args.begin() + 1, args.end()});
+    }
+
+    std::cerr << "Unknown lab5 command.\n";
+    print_lab_help(std::cerr, "lab5");
+    return 2;
+}
+
 } // namespace
 
 int run_cli(const int argc, char** argv) {
@@ -1854,6 +2028,10 @@ int run_cli(const int argc, char** argv) {
 
         if (command == "lab4") {
             return run_lab4(args);
+        }
+
+        if (command == "lab5") {
+            return run_lab5(args);
         }
 
         if (is_lab_command(command)) {
