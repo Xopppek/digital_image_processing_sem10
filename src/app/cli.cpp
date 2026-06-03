@@ -12,6 +12,7 @@
 #include "lab04_convolution/low_pass.hpp"
 #include "lab05_nonlinear/morphology.hpp"
 #include "lab05_nonlinear/rank_filter.hpp"
+#include "lab06_segmentation/connected_components.hpp"
 #include "lab06_segmentation/otsu.hpp"
 
 #include <array>
@@ -54,6 +55,8 @@ void print_general_help(std::ostream& output) {
            << "  dip lab5 morphology --input <path> --output <path> --aperture <path> --operation <erosion|dilation|opening|closing>\n"
            << "  dip lab5 compare-denoise --input <path> --noise <gaussian|impulse> --aperture <path> --trimmed-count <even> --noisy-output <path> --median-output <path> --trimmed-output <path> --metrics-output <path>\n"
            << "  dip lab6 otsu --input <path> --output <path> [--metrics-output <path>]\n"
+           << "  dip lab6 components --input <path> --output <path> [--metrics-output <path>]\n"
+           << "  dip lab6 circles --input <path> --output <path> [--metrics-output <path>]\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -137,9 +140,13 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
 
     if (lab == "lab6") {
         output << "  dip lab6 otsu --input <path> --output <path> [--metrics-output <path>]\n"
+               << "  dip lab6 components --input <path> --output <path> [--metrics-output <path>]\n"
+               << "  dip lab6 circles --input <path> --output <path> [--metrics-output <path>]\n"
                << "  dip lab6 --help\n\n"
                << "Available commands:\n"
-               << "  otsu  Binarize a grayscale image using an automatically selected Otsu threshold.\n";
+               << "  otsu        Binarize a grayscale image using an automatically selected Otsu threshold.\n"
+               << "  components  Label 4-connected nonzero regions in a binary image.\n"
+               << "  circles     Highlight large 4-connected regions with circle-like shape.\n";
         return;
     }
 
@@ -901,6 +908,137 @@ void write_otsu_json(
            << "  },\n"
            << "  \"within_class_variance\": " << result.within_class_variance << ",\n"
            << "  \"between_class_variance\": " << result.between_class_variance << "\n"
+           << "}\n";
+}
+
+void write_connected_components_json(
+    const std::string& output_path,
+    const std::string& input_path,
+    const std::string& labels_output_path,
+    const lab06::ConnectedComponentsResult& result
+) {
+    std::ofstream output(output_path);
+    if (!output) {
+        throw std::runtime_error("failed to open output file: " + output_path);
+    }
+
+    output << "{\n"
+           << "  \"input\": \"" << input_path << "\",\n"
+           << "  \"labels_output\": \"" << labels_output_path << "\",\n"
+           << "  \"method\": \"4-connected component labeling\",\n"
+           << "  \"foreground_condition\": \"pixel != 0\",\n"
+           << "  \"width\": " << result.width << ",\n"
+           << "  \"height\": " << result.height << ",\n"
+           << "  \"component_count\": " << result.components.size() << ",\n"
+           << "  \"components\": [\n";
+
+    for (std::size_t i = 0; i < result.components.size(); ++i) {
+        const lab06::ConnectedComponent& component = result.components[i];
+        output << "    {\n"
+               << "      \"label\": " << component.label << ",\n"
+               << "      \"area\": " << component.area << ",\n"
+               << "      \"min_x\": " << component.min_x << ",\n"
+               << "      \"min_y\": " << component.min_y << ",\n"
+               << "      \"max_x\": " << component.max_x << ",\n"
+               << "      \"max_y\": " << component.max_y << ",\n"
+               << "      \"raw_moments\": {\n"
+               << "        \"m00\": " << component.m00 << ",\n"
+               << "        \"m10\": " << component.m10 << ",\n"
+               << "        \"m01\": " << component.m01 << "\n"
+               << "      },\n"
+               << "      \"centroid\": {\n"
+               << "        \"x\": " << component.centroid_x << ",\n"
+               << "        \"y\": " << component.centroid_y << "\n"
+               << "      },\n"
+               << "      \"central_moments\": {\n"
+               << "        \"mu20\": " << component.mu20 << ",\n"
+               << "        \"mu02\": " << component.mu02 << ",\n"
+               << "        \"mu11\": " << component.mu11 << "\n"
+               << "      }\n"
+               << "    }";
+        if (i + 1 < result.components.size()) {
+            output << ',';
+        }
+        output << '\n';
+    }
+
+    output << "  ]\n"
+           << "}\n";
+}
+
+void write_circle_like_components_json(
+    const std::string& output_path,
+    const std::string& input_path,
+    const std::string& highlighted_output_path,
+    const lab06::ConnectedComponentsResult& result,
+    const std::vector<lab06::CircleLikeComponent>& selected_components,
+    const std::size_t min_area,
+    const double max_aspect_deviation,
+    const double min_fill_ratio,
+    const double max_fill_ratio,
+    const double max_moment_deviation
+) {
+    std::ofstream output(output_path);
+    if (!output) {
+        throw std::runtime_error("failed to open output file: " + output_path);
+    }
+
+    output << std::fixed << std::setprecision(12);
+    output << "{\n"
+           << "  \"input\": \"" << input_path << "\",\n"
+           << "  \"highlighted_output\": \"" << highlighted_output_path << "\",\n"
+           << "  \"method\": \"large circle-like component detection\",\n"
+           << "  \"foreground_condition\": \"pixel != 0\",\n"
+           << "  \"width\": " << result.width << ",\n"
+           << "  \"height\": " << result.height << ",\n"
+           << "  \"component_count\": " << result.components.size() << ",\n"
+           << "  \"selected_count\": " << selected_components.size() << ",\n"
+           << "  \"criteria\": {\n"
+           << "    \"min_area_exclusive\": " << min_area << ",\n"
+           << "    \"max_aspect_deviation\": " << max_aspect_deviation << ",\n"
+           << "    \"min_fill_ratio\": " << min_fill_ratio << ",\n"
+           << "    \"max_fill_ratio\": " << max_fill_ratio << ",\n"
+           << "    \"max_moment_deviation\": " << max_moment_deviation << "\n"
+           << "  },\n"
+           << "  \"selected_components\": [\n";
+
+    for (std::size_t i = 0; i < selected_components.size(); ++i) {
+        const lab06::CircleLikeComponent& selected = selected_components[i];
+        const lab06::ConnectedComponent& component = selected.component;
+        output << "    {\n"
+               << "      \"label\": " << component.label << ",\n"
+               << "      \"area\": " << component.area << ",\n"
+               << "      \"min_x\": " << component.min_x << ",\n"
+               << "      \"min_y\": " << component.min_y << ",\n"
+               << "      \"max_x\": " << component.max_x << ",\n"
+               << "      \"max_y\": " << component.max_y << ",\n"
+               << "      \"bounding_width\": " << selected.bounding_width << ",\n"
+               << "      \"bounding_height\": " << selected.bounding_height << ",\n"
+               << "      \"aspect_deviation\": " << selected.aspect_deviation << ",\n"
+               << "      \"fill_ratio\": " << selected.fill_ratio << ",\n"
+               << "      \"moment_deviation\": " << selected.moment_deviation << ",\n"
+               << "      \"raw_moments\": {\n"
+               << "        \"m00\": " << component.m00 << ",\n"
+               << "        \"m10\": " << component.m10 << ",\n"
+               << "        \"m01\": " << component.m01 << "\n"
+               << "      },\n"
+               << "      \"centroid\": {\n"
+               << "        \"x\": " << component.centroid_x << ",\n"
+               << "        \"y\": " << component.centroid_y << "\n"
+               << "      },\n"
+               << "      \"central_moments\": {\n"
+               << "        \"mu20\": " << component.mu20 << ",\n"
+               << "        \"mu02\": " << component.mu02 << ",\n"
+               << "        \"mu11\": " << component.mu11 << "\n"
+               << "      }\n"
+               << "    }";
+        if (i + 1 < selected_components.size()) {
+            output << ',';
+        }
+        output << '\n';
+    }
+
+    output << "  ]\n"
            << "}\n";
 }
 
@@ -2550,6 +2688,117 @@ int run_lab6_otsu(const std::vector<std::string>& args) {
     return 0;
 }
 
+int run_lab6_components(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string metrics_output_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--metrics-output" && i + 1 < args.size()) {
+            metrics_output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab6 components: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    const GrayImage binary = read_gray_image(input_path);
+    const lab06::ConnectedComponentsResult result = lab06::label_4_connected_components(binary);
+    const RgbImage labels = lab06::render_component_labels_color(result);
+
+    write_rgb_image(output_path, labels);
+    if (!metrics_output_path.empty()) {
+        write_connected_components_json(metrics_output_path, input_path, output_path, result);
+    }
+
+    return 0;
+}
+
+int run_lab6_circles(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string metrics_output_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--metrics-output" && i + 1 < args.size()) {
+            metrics_output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab6 circles: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    constexpr std::size_t min_area = 30;
+    constexpr double max_aspect_deviation = 0.25;
+    constexpr double min_fill_ratio = 0.45;
+    constexpr double max_fill_ratio = 0.90;
+    constexpr double max_moment_deviation = 0.25;
+
+    const GrayImage binary = read_gray_image(input_path);
+    const lab06::ConnectedComponentsResult result = lab06::label_4_connected_components(binary);
+    const std::vector<lab06::CircleLikeComponent> selected = lab06::find_large_circle_like_components(
+        result,
+        min_area,
+        max_aspect_deviation,
+        min_fill_ratio,
+        max_fill_ratio,
+        max_moment_deviation
+    );
+    const RgbImage highlighted = lab06::render_selected_components_color(result, selected);
+
+    write_rgb_image(output_path, highlighted);
+    if (!metrics_output_path.empty()) {
+        write_circle_like_components_json(
+            metrics_output_path,
+            input_path,
+            output_path,
+            result,
+            selected,
+            min_area,
+            max_aspect_deviation,
+            min_fill_ratio,
+            max_fill_ratio,
+            max_moment_deviation
+        );
+    }
+
+    return 0;
+}
+
 int run_lab6(const std::vector<std::string>& args) {
     if (args.size() == 1 && args.front() == "--help") {
         print_lab_help(std::cout, "lab6");
@@ -2558,6 +2807,14 @@ int run_lab6(const std::vector<std::string>& args) {
 
     if (!args.empty() && args.front() == "otsu") {
         return run_lab6_otsu({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "components") {
+        return run_lab6_components({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "circles") {
+        return run_lab6_circles({args.begin() + 1, args.end()});
     }
 
     std::cerr << "Unknown lab6 command.\n";

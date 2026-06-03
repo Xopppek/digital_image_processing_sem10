@@ -48,4 +48,30 @@ void write_gray_image(const std::string& path, const GrayImage& image) {
     }
 }
 
+void write_rgb_image(const std::string& path, const RgbImage& image) {
+    if (image.width == 0 || image.height == 0 || image.pixels.size() != image.width * image.height) {
+        throw std::invalid_argument("cannot write an empty or invalid RGB image");
+    }
+
+    cv::Mat matrix(
+        static_cast<int>(image.height),
+        static_cast<int>(image.width),
+        CV_8UC3
+    );
+
+    for (std::size_t y = 0; y < image.height; ++y) {
+        auto* row = matrix.ptr<std::uint8_t>(static_cast<int>(y));
+        for (std::size_t x = 0; x < image.width; ++x) {
+            const RgbPixel& pixel = image.pixels[y * image.width + x];
+            row[x * 3] = pixel.blue;
+            row[x * 3 + 1] = pixel.green;
+            row[x * 3 + 2] = pixel.red;
+        }
+    }
+
+    if (!cv::imwrite(path, matrix)) {
+        throw std::runtime_error("failed to write image: " + path);
+    }
+}
+
 } // namespace dip

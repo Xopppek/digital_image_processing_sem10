@@ -1,0 +1,73 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab06/input/components/geometric_shapes.pgm",
+  "highlighted_output": "/home/roman/Study/digital_image_processing_sem10/images/lab06/output/geometric_shapes_large_circles.png",
+  "method": "large circle-like component detection",
+  "foreground_condition": "pixel != 0",
+  "width": 44,
+  "height": 32,
+  "component_count": 7,
+  "selected_count": 2,
+  "criteria": {
+    "min_area_exclusive": 30,
+    "max_aspect_deviation": 0.250000000000,
+    "min_fill_ratio": 0.450000000000,
+    "max_fill_ratio": 0.900000000000,
+    "max_moment_deviation": 0.250000000000
+  },
+  "selected_components": [
+    {
+      "label": 3,
+      "area": 49,
+      "min_x": 4,
+      "min_y": 4,
+      "max_x": 12,
+      "max_y": 12,
+      "bounding_width": 9.000000000000,
+      "bounding_height": 9.000000000000,
+      "aspect_deviation": 0.000000000000,
+      "fill_ratio": 0.604938271605,
+      "moment_deviation": 0.000000000000,
+      "raw_moments": {
+        "m00": 49.000000000000,
+        "m10": 392.000000000000,
+        "m01": 392.000000000000
+      },
+      "centroid": {
+        "x": 8.000000000000,
+        "y": 8.000000000000
+      },
+      "central_moments": {
+        "mu20": 192.000000000000,
+        "mu02": 192.000000000000,
+        "mu11": 0.000000000000
+      }
+    },
+    {
+      "label": 6,
+      "area": 81,
+      "min_x": 26,
+      "min_y": 17,
+      "max_x": 36,
+      "max_y": 27,
+      "bounding_width": 11.000000000000,
+      "bounding_height": 11.000000000000,
+      "aspect_deviation": 0.000000000000,
+      "fill_ratio": 0.669421487603,
+      "moment_deviation": 0.000000000000,
+      "raw_moments": {
+        "m00": 81.000000000000,
+        "m10": 2511.000000000000,
+        "m01": 1782.000000000000
+      },
+      "centroid": {
+        "x": 31.000000000000,
+        "y": 22.000000000000
+      },
+      "central_moments": {
+        "mu20": 526.000000000000,
+        "mu02": 526.000000000000,
+        "mu11": 0.000000000000
+      }
+    }
+  ]
+}

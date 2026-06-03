@@ -1,0 +1,165 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab06/input/components/diagonal_chains_4conn.pgm",
+  "labels_output": "/home/roman/Study/digital_image_processing_sem10/images/lab06/output/diagonal_chains_4conn_components_color.png",
+  "method": "4-connected component labeling",
+  "foreground_condition": "pixel != 0",
+  "width": 12,
+  "height": 12,
+  "component_count": 7,
+  "components": [
+    {
+      "label": 1,
+      "area": 1,
+      "min_x": 2,
+      "min_y": 2,
+      "max_x": 2,
+      "max_y": 2,
+      "raw_moments": {
+        "m00": 1,
+        "m10": 2,
+        "m01": 2
+      },
+      "centroid": {
+        "x": 2,
+        "y": 2
+      },
+      "central_moments": {
+        "mu20": 0,
+        "mu02": 0,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 2,
+      "area": 1,
+      "min_x": 8,
+      "min_y": 2,
+      "max_x": 8,
+      "max_y": 2,
+      "raw_moments": {
+        "m00": 1,
+        "m10": 8,
+        "m01": 2
+      },
+      "centroid": {
+        "x": 8,
+        "y": 2
+      },
+      "central_moments": {
+        "mu20": 0,
+        "mu02": 0,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 3,
+      "area": 1,
+      "min_x": 3,
+      "min_y": 3,
+      "max_x": 3,
+      "max_y": 3,
+      "raw_moments": {
+        "m00": 1,
+        "m10": 3,
+        "m01": 3
+      },
+      "centroid": {
+        "x": 3,
+        "y": 3
+      },
+      "central_moments": {
+        "mu20": 0,
+        "mu02": 0,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 4,
+      "area": 1,
+      "min_x": 7,
+      "min_y": 3,
+      "max_x": 7,
+      "max_y": 3,
+      "raw_moments": {
+        "m00": 1,
+        "m10": 7,
+        "m01": 3
+      },
+      "centroid": {
+        "x": 7,
+        "y": 3
+      },
+      "central_moments": {
+        "mu20": 0,
+        "mu02": 0,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 5,
+      "area": 1,
+      "min_x": 4,
+      "min_y": 4,
+      "max_x": 4,
+      "max_y": 4,
+      "raw_moments": {
+        "m00": 1,
+        "m10": 4,
+        "m01": 4
+      },
+      "centroid": {
+        "x": 4,
+        "y": 4
+      },
+      "central_moments": {
+        "mu20": 0,
+        "mu02": 0,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 6,
+      "area": 1,
+      "min_x": 6,
+      "min_y": 4,
+      "max_x": 6,
+      "max_y": 4,
+      "raw_moments": {
+        "m00": 1,
+        "m10": 6,
+        "m01": 4
+      },
+      "centroid": {
+        "x": 6,
+        "y": 4
+      },
+      "central_moments": {
+        "mu20": 0,
+        "mu02": 0,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 7,
+      "area": 1,
+      "min_x": 5,
+      "min_y": 5,
+      "max_x": 5,
+      "max_y": 5,
+      "raw_moments": {
+        "m00": 1,
+        "m10": 5,
+        "m01": 5
+      },
+      "centroid": {
+        "x": 5,
+        "y": 5
+      },
+      "central_moments": {
+        "mu20": 0,
+        "mu02": 0,
+        "mu11": 0
+      }
+    }
+  ]
+}

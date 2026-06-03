@@ -606,6 +606,7 @@ fi
 if should_run "lab06"; then
 lab06_output_dir="${repo_root}/images/lab06/output"
 lab06_input_dir="${repo_root}/images/lab06/input"
+lab06_components_input_dir="${lab06_input_dir}/components"
 mkdir -p "${lab06_output_dir}"
 
 while IFS= read -r -d '' image_path; do
@@ -624,6 +625,36 @@ while IFS= read -r -d '' image_path; do
     echo "wrote ${metrics_path#${repo_root}/}"
 done < <(find "${lab06_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+    labels_path="${lab06_output_dir}/${image_stem}_components_color.png"
+    components_path="${lab06_output_dir}/${image_stem}_components.json"
+    circles_path="${lab06_output_dir}/${image_stem}_large_circles.png"
+    circles_metrics_path="${lab06_output_dir}/${image_stem}_large_circles.json"
+
+    "${binary}" lab6 components \
+        --input "${image_path}" \
+        --output "${labels_path}" \
+        --metrics-output "${components_path}"
+
+    echo "wrote ${labels_path#${repo_root}/}"
+    echo "wrote ${components_path#${repo_root}/}"
+
+    if [[ "${image_stem}" == "geometric_shapes" ]]; then
+        "${binary}" lab6 circles \
+            --input "${image_path}" \
+            --output "${circles_path}" \
+            --metrics-output "${circles_metrics_path}"
+
+        echo "wrote ${circles_path#${repo_root}/}"
+        echo "wrote ${circles_metrics_path#${repo_root}/}"
+    fi
+done < <(find "${lab06_components_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.pgm' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
 fi
 

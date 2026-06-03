@@ -1,0 +1,55 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab06/input/components/thin_bridges.pgm",
+  "labels_output": "/home/roman/Study/digital_image_processing_sem10/images/lab06/output/thin_bridges_components_color.png",
+  "method": "4-connected component labeling",
+  "foreground_condition": "pixel != 0",
+  "width": 18,
+  "height": 14,
+  "component_count": 2,
+  "components": [
+    {
+      "label": 1,
+      "area": 37,
+      "min_x": 2,
+      "min_y": 1,
+      "max_x": 14,
+      "max_y": 5,
+      "raw_moments": {
+        "m00": 37,
+        "m10": 296,
+        "m01": 111
+      },
+      "centroid": {
+        "x": 8,
+        "y": 3
+      },
+      "central_moments": {
+        "mu20": 798,
+        "mu02": 60,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 2,
+      "area": 24,
+      "min_x": 4,
+      "min_y": 7,
+      "max_x": 13,
+      "max_y": 10,
+      "raw_moments": {
+        "m00": 24,
+        "m10": 204,
+        "m01": 204
+      },
+      "centroid": {
+        "x": 8.5,
+        "y": 8.5
+      },
+      "central_moments": {
+        "mu20": 250,
+        "mu02": 30,
+        "mu11": 0
+      }
+    }
+  ]
+}
