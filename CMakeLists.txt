@@ -28,6 +28,8 @@ add_executable(dip
     src/lab04_convolution/low_pass.cpp
     src/lab05_nonlinear/morphology.cpp
     src/lab05_nonlinear/rank_filter.cpp
+    src/lab06_segmentation/connected_components.cpp
+    src/lab06_segmentation/otsu.cpp
 )
 
 target_include_directories(dip

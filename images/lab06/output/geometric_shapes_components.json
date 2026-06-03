@@ -1,0 +1,165 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab06/input/components/geometric_shapes.pgm",
+  "labels_output": "/home/roman/Study/digital_image_processing_sem10/images/lab06/output/geometric_shapes_components_color.png",
+  "method": "4-connected component labeling",
+  "foreground_condition": "pixel != 0",
+  "width": 44,
+  "height": 32,
+  "component_count": 7,
+  "components": [
+    {
+      "label": 1,
+      "area": 13,
+      "min_x": 18,
+      "min_y": 3,
+      "max_x": 22,
+      "max_y": 7,
+      "raw_moments": {
+        "m00": 13,
+        "m10": 260,
+        "m01": 65
+      },
+      "centroid": {
+        "x": 20,
+        "y": 5
+      },
+      "central_moments": {
+        "mu20": 14,
+        "mu02": 14,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 2,
+      "area": 55,
+      "min_x": 30,
+      "min_y": 3,
+      "max_x": 40,
+      "max_y": 7,
+      "raw_moments": {
+        "m00": 55,
+        "m10": 1925,
+        "m01": 275
+      },
+      "centroid": {
+        "x": 35,
+        "y": 5
+      },
+      "central_moments": {
+        "mu20": 550,
+        "mu02": 110,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 3,
+      "area": 49,
+      "min_x": 4,
+      "min_y": 4,
+      "max_x": 12,
+      "max_y": 12,
+      "raw_moments": {
+        "m00": 49,
+        "m10": 392,
+        "m01": 392
+      },
+      "centroid": {
+        "x": 8,
+        "y": 8
+      },
+      "central_moments": {
+        "mu20": 192,
+        "mu02": 192,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 4,
+      "area": 49,
+      "min_x": 16,
+      "min_y": 15,
+      "max_x": 22,
+      "max_y": 21,
+      "raw_moments": {
+        "m00": 49,
+        "m10": 931,
+        "m01": 882
+      },
+      "centroid": {
+        "x": 19,
+        "y": 18
+      },
+      "central_moments": {
+        "mu20": 196,
+        "mu02": 196,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 5,
+      "area": 11,
+      "min_x": 2,
+      "min_y": 16,
+      "max_x": 12,
+      "max_y": 16,
+      "raw_moments": {
+        "m00": 11,
+        "m10": 77,
+        "m01": 176
+      },
+      "centroid": {
+        "x": 7,
+        "y": 16
+      },
+      "central_moments": {
+        "mu20": 110,
+        "mu02": 0,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 6,
+      "area": 81,
+      "min_x": 26,
+      "min_y": 17,
+      "max_x": 36,
+      "max_y": 27,
+      "raw_moments": {
+        "m00": 81,
+        "m10": 2511,
+        "m01": 1782
+      },
+      "centroid": {
+        "x": 31,
+        "y": 22
+      },
+      "central_moments": {
+        "mu20": 526,
+        "mu02": 526,
+        "mu11": 0
+      }
+    },
+    {
+      "label": 7,
+      "area": 55,
+      "min_x": 3,
+      "min_y": 21,
+      "max_x": 15,
+      "max_y": 27,
+      "raw_moments": {
+        "m00": 55,
+        "m10": 495,
+        "m01": 1320
+      },
+      "centroid": {
+        "x": 9,
+        "y": 24
+      },
+      "central_moments": {
+        "mu20": 522,
+        "mu02": 112,
+        "mu11": 0
+      }
+    }
+  ]
+}

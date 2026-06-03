@@ -1,0 +1,24 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab06/input/stone.jpg",
+  "binary_output": "/home/roman/Study/digital_image_processing_sem10/images/lab06/output/stone_otsu_binary.png",
+  "method": "Otsu thresholding",
+  "width": 225,
+  "height": 225,
+  "threshold": 198,
+  "class_0": {
+    "condition": "pixel <= threshold",
+    "output_value": 0,
+    "pixel_count": 13296,
+    "probability": 0.262637037037,
+    "mean": 141.693892900120
+  },
+  "class_1": {
+    "condition": "pixel > threshold",
+    "output_value": 255,
+    "pixel_count": 37329,
+    "probability": 0.737362962963,
+    "mean": 254.631117897613
+  },
+  "within_class_variance": 220.296664445504,
+  "between_class_variance": 2470.082817533365
+}

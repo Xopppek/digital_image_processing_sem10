@@ -1,0 +1,24 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab06/input/ball.jpg",
+  "binary_output": "/home/roman/Study/digital_image_processing_sem10/images/lab06/output/ball_otsu_binary.png",
+  "method": "Otsu thresholding",
+  "width": 980,
+  "height": 980,
+  "threshold": 215,
+  "class_0": {
+    "condition": "pixel <= threshold",
+    "output_value": 0,
+    "pixel_count": 414144,
+    "probability": 0.431220324865,
+    "mean": 179.828508924432
+  },
+  "class_1": {
+    "condition": "pixel > threshold",
+    "output_value": 255,
+    "pixel_count": 546256,
+    "probability": 0.568779675135,
+    "mean": 251.504082335022
+  },
+  "within_class_variance": 183.856040459417,
+  "between_class_variance": 1260.043804531174
+}

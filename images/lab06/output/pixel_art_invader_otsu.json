@@ -1,0 +1,24 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab06/input/pixel_art_invader.png",
+  "binary_output": "/home/roman/Study/digital_image_processing_sem10/images/lab06/output/pixel_art_invader_otsu_binary.png",
+  "method": "Otsu thresholding",
+  "width": 32,
+  "height": 32,
+  "threshold": 40,
+  "class_0": {
+    "condition": "pixel <= threshold",
+    "output_value": 0,
+    "pixel_count": 352,
+    "probability": 0.343750000000,
+    "mean": 33.636363636364
+  },
+  "class_1": {
+    "condition": "pixel > threshold",
+    "output_value": 255,
+    "pixel_count": 672,
+    "probability": 0.656250000000,
+    "mean": 220.000000000000
+  },
+  "within_class_variance": 7.954545454545,
+  "between_class_variance": 7834.916548295455
+}
