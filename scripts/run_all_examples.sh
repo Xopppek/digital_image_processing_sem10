@@ -511,6 +511,67 @@ while IFS= read -r -d '' image_path; do
 
         echo "wrote ${trimmed_path#${repo_root}/}"
     done
+
+    gaussian_variance=625
+    impulse_probability=0.06
+    impulse_label="p006"
+
+    case "${image_stem}" in
+        bnw)
+            gaussian_variance=400
+            impulse_probability=0.05
+            impulse_label="p005"
+            ;;
+        pixel_art_invader)
+            gaussian_variance=225
+            impulse_probability=0.10
+            impulse_label="p010"
+            ;;
+    esac
+
+    gaussian_noisy_path="${lab05_output_dir}/${image_stem}_gaussian_var${gaussian_variance}.png"
+    gaussian_median_path="${lab05_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_median_full_3x3.png"
+    gaussian_trimmed_path="${lab05_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_trimmed_mean_full_3x3_d4.png"
+    gaussian_metrics_path="${lab05_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_median_vs_trimmed_mean_full_3x3_psnr.json"
+
+    "${binary}" lab5 compare-denoise \
+        --input "${image_path}" \
+        --noise gaussian \
+        --variance "${gaussian_variance}" \
+        --aperture "${lab05_aperture_dir}/full_3x3.txt" \
+        --trimmed-count 4 \
+        --seed 1 \
+        --noisy-output "${gaussian_noisy_path}" \
+        --median-output "${gaussian_median_path}" \
+        --trimmed-output "${gaussian_trimmed_path}" \
+        --metrics-output "${gaussian_metrics_path}"
+
+    echo "wrote ${gaussian_noisy_path#${repo_root}/}"
+    echo "wrote ${gaussian_median_path#${repo_root}/}"
+    echo "wrote ${gaussian_trimmed_path#${repo_root}/}"
+    echo "wrote ${gaussian_metrics_path#${repo_root}/}"
+
+    impulse_noisy_path="${lab05_output_dir}/${image_stem}_impulse_${impulse_label}.png"
+    impulse_median_path="${lab05_output_dir}/${image_stem}_impulse_${impulse_label}_median_full_3x3.png"
+    impulse_trimmed_path="${lab05_output_dir}/${image_stem}_impulse_${impulse_label}_trimmed_mean_full_3x3_d4.png"
+    impulse_metrics_path="${lab05_output_dir}/${image_stem}_impulse_${impulse_label}_median_vs_trimmed_mean_full_3x3_psnr.json"
+
+    "${binary}" lab5 compare-denoise \
+        --input "${image_path}" \
+        --noise impulse \
+        --probability "${impulse_probability}" \
+        --aperture "${lab05_aperture_dir}/full_3x3.txt" \
+        --trimmed-count 4 \
+        --seed 1 \
+        --noisy-output "${impulse_noisy_path}" \
+        --median-output "${impulse_median_path}" \
+        --trimmed-output "${impulse_trimmed_path}" \
+        --metrics-output "${impulse_metrics_path}"
+
+    echo "wrote ${impulse_noisy_path#${repo_root}/}"
+    echo "wrote ${impulse_median_path#${repo_root}/}"
+    echo "wrote ${impulse_trimmed_path#${repo_root}/}"
+    echo "wrote ${impulse_metrics_path#${repo_root}/}"
 done < <(find "${lab05_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)

@@ -1,0 +1,32 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab05/input/bnw.png",
+  "noisy_output": "/home/roman/Study/digital_image_processing_sem10/images/lab05/output/bnw_gaussian_var400.png",
+  "median_output": "/home/roman/Study/digital_image_processing_sem10/images/lab05/output/bnw_gaussian_var400_median_full_3x3.png",
+  "trimmed_mean_output": "/home/roman/Study/digital_image_processing_sem10/images/lab05/output/bnw_gaussian_var400_trimmed_mean_full_3x3_d4.png",
+  "noise_type": "gaussian",
+  "variance": 400.000000000000,
+  "seed": 1,
+  "aperture": {
+    "width": 3,
+    "height": 3,
+    "active_cells": 9
+  },
+  "median_filter": {
+    "rank": 4
+  },
+  "trimmed_mean_filter": {
+    "trimmed_count": 4,
+    "trim_each_side": 2
+  },
+  "original_width": 1120,
+  "original_height": 1120,
+  "comparison_width": 1118,
+  "comparison_height": 1118,
+  "comparison_method": "center crop original and noisy images to the valid aperture result size",
+  "noisy_mse": 325.048017319453,
+  "noisy_psnr_db": 23.011328395305,
+  "median_mse": 199.239942588509,
+  "median_psnr_db": 25.137039529506,
+  "trimmed_mean_mse": 187.177678002823,
+  "trimmed_mean_psnr_db": 25.408263054521
+}

@@ -49,6 +49,7 @@ void print_general_help(std::ostream& output) {
            << "  dip lab4 sharpen --input <path> --output <path> [--kernel-size <odd>] [--amount <value>]\n"
            << "  dip lab5 rank --input <path> --output <path> --aperture <path> --rank <index|min|median|max>\n"
            << "  dip lab5 trimmed-mean --input <path> --output <path> --aperture <path> --trimmed-count <even>\n"
+           << "  dip lab5 compare-denoise --input <path> --noise <gaussian|impulse> --aperture <path> --trimmed-count <even> --noisy-output <path> --median-output <path> --trimmed-output <path> --metrics-output <path>\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -119,10 +120,12 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
     if (lab == "lab5") {
         output << "  dip lab5 rank --input <path> --output <path> --aperture <path> --rank <index|min|median|max>\n"
                << "  dip lab5 trimmed-mean --input <path> --output <path> --aperture <path> --trimmed-count <even>\n"
+               << "  dip lab5 compare-denoise --input <path> --noise <gaussian|impulse> --aperture <path> --trimmed-count <even> --noisy-output <path> --median-output <path> --trimmed-output <path> --metrics-output <path>\n"
                << "  dip lab5 --help\n\n"
                << "Available commands:\n"
                << "  rank          Apply rank filtering with an arbitrary aperture mask.\n"
-               << "  trimmed-mean  Apply trimmed mean filtering with an arbitrary aperture mask.\n";
+               << "  trimmed-mean  Apply trimmed mean filtering with an arbitrary aperture mask.\n"
+               << "  compare-denoise  Compare median and trimmed mean filters by PSNR.\n";
         return;
     }
 
@@ -697,6 +700,78 @@ void write_lowpass_denoise_json(
            << "  \"filtered_mse\": " << filtered_mse << ",\n"
            << "  \"filtered_psnr_db\": ";
     write_psnr_value(output, filtered_psnr);
+    output << "\n"
+           << "}\n";
+}
+
+void write_lab5_denoise_comparison_json(
+    const std::string& output_path,
+    const std::string& input_path,
+    const std::string& noisy_output_path,
+    const std::string& median_output_path,
+    const std::string& trimmed_output_path,
+    const NoiseKind noise_kind,
+    const std::string& noise_parameter_name,
+    const double noise_parameter_value,
+    const std::uint32_t seed,
+    const lab05::Aperture& aperture,
+    const std::size_t median_rank,
+    const std::size_t trimmed_count,
+    const GrayImage& original,
+    const GrayImage& original_crop,
+    const GrayImage& noisy_crop,
+    const GrayImage& median_filtered,
+    const GrayImage& trimmed_filtered
+) {
+    std::ofstream output(output_path);
+    if (!output) {
+        throw std::runtime_error("failed to open output file: " + output_path);
+    }
+
+    const double noisy_mse = lab01::mean_squared_error(original_crop, noisy_crop);
+    const double noisy_psnr = lab01::peak_signal_to_noise_ratio(original_crop, noisy_crop);
+    const double median_mse = lab01::mean_squared_error(original_crop, median_filtered);
+    const double median_psnr = lab01::peak_signal_to_noise_ratio(original_crop, median_filtered);
+    const double trimmed_mse = lab01::mean_squared_error(original_crop, trimmed_filtered);
+    const double trimmed_psnr = lab01::peak_signal_to_noise_ratio(original_crop, trimmed_filtered);
+
+    output << std::fixed << std::setprecision(12);
+    output << "{\n"
+           << "  \"input\": \"" << input_path << "\",\n"
+           << "  \"noisy_output\": \"" << noisy_output_path << "\",\n"
+           << "  \"median_output\": \"" << median_output_path << "\",\n"
+           << "  \"trimmed_mean_output\": \"" << trimmed_output_path << "\",\n"
+           << "  \"noise_type\": \"" << noise_kind_name(noise_kind) << "\",\n"
+           << "  \"" << noise_parameter_name << "\": " << noise_parameter_value << ",\n"
+           << "  \"seed\": " << seed << ",\n"
+           << "  \"aperture\": {\n"
+           << "    \"width\": " << aperture.width << ",\n"
+           << "    \"height\": " << aperture.height << ",\n"
+           << "    \"active_cells\": " << lab05::active_aperture_size(aperture) << "\n"
+           << "  },\n"
+           << "  \"median_filter\": {\n"
+           << "    \"rank\": " << median_rank << "\n"
+           << "  },\n"
+           << "  \"trimmed_mean_filter\": {\n"
+           << "    \"trimmed_count\": " << trimmed_count << ",\n"
+           << "    \"trim_each_side\": " << (trimmed_count / 2) << "\n"
+           << "  },\n"
+           << "  \"original_width\": " << original.width() << ",\n"
+           << "  \"original_height\": " << original.height() << ",\n"
+           << "  \"comparison_width\": " << median_filtered.width() << ",\n"
+           << "  \"comparison_height\": " << median_filtered.height() << ",\n"
+           << "  \"comparison_method\": \"center crop original and noisy images to the valid aperture result size\",\n"
+           << "  \"noisy_mse\": " << noisy_mse << ",\n"
+           << "  \"noisy_psnr_db\": ";
+    write_psnr_value(output, noisy_psnr);
+    output << ",\n"
+           << "  \"median_mse\": " << median_mse << ",\n"
+           << "  \"median_psnr_db\": ";
+    write_psnr_value(output, median_psnr);
+    output << ",\n"
+           << "  \"trimmed_mean_mse\": " << trimmed_mse << ",\n"
+           << "  \"trimmed_mean_psnr_db\": ";
+    write_psnr_value(output, trimmed_psnr);
     output << "\n"
            << "}\n";
 }
@@ -2048,6 +2123,204 @@ int run_lab5_trimmed_mean(const std::vector<std::string>& args) {
     return 0;
 }
 
+int run_lab5_compare_denoise(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string aperture_path;
+    std::string noisy_output_path;
+    std::string median_output_path;
+    std::string trimmed_output_path;
+    std::string metrics_output_path;
+    NoiseKind noise_kind = NoiseKind::gaussian;
+    bool has_noise_kind = false;
+    double variance = 0.0;
+    bool has_variance = false;
+    double probability = 0.0;
+    bool has_probability = false;
+    int trimmed_count_value = 0;
+    bool has_trimmed_count = false;
+    std::uint32_t seed = 1;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--noise" && i + 1 < args.size()) {
+            if (!parse_noise_kind(args[i + 1], noise_kind)) {
+                std::cerr << "Invalid noise type for --noise: " << args[i + 1] << '\n';
+                std::cerr << "Expected one of: gaussian, impulse.\n";
+                return 2;
+            }
+            has_noise_kind = true;
+            ++i;
+        } else if (args[i] == "--aperture" && i + 1 < args.size()) {
+            aperture_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--trimmed-count" && i + 1 < args.size()) {
+            if (!parse_int(args[i + 1], trimmed_count_value)) {
+                std::cerr << "Invalid integer value for --trimmed-count: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_trimmed_count = true;
+            ++i;
+        } else if (args[i] == "--noisy-output" && i + 1 < args.size()) {
+            noisy_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--median-output" && i + 1 < args.size()) {
+            median_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--trimmed-output" && i + 1 < args.size()) {
+            trimmed_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--metrics-output" && i + 1 < args.size()) {
+            metrics_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--variance" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], variance)) {
+                std::cerr << "Invalid value for --variance: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_variance = true;
+            ++i;
+        } else if (args[i] == "--probability" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], probability)) {
+                std::cerr << "Invalid value for --probability: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_probability = true;
+            ++i;
+        } else if (args[i] == "--seed" && i + 1 < args.size()) {
+            if (!parse_seed(args[i + 1], seed)) {
+                std::cerr << "Invalid value for --seed: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab5 compare-denoise: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (!has_noise_kind) {
+        std::cerr << "Missing required option: --noise <gaussian|impulse>\n";
+        return 2;
+    }
+
+    if (aperture_path.empty()) {
+        std::cerr << "Missing required option: --aperture <path>\n";
+        return 2;
+    }
+
+    if (!has_trimmed_count) {
+        std::cerr << "Missing required option: --trimmed-count <even>\n";
+        return 2;
+    }
+
+    if (trimmed_count_value < 0) {
+        std::cerr << "Trimmed count must be non-negative.\n";
+        return 2;
+    }
+
+    if (noisy_output_path.empty()) {
+        std::cerr << "Missing required option: --noisy-output <path>\n";
+        return 2;
+    }
+
+    if (median_output_path.empty()) {
+        std::cerr << "Missing required option: --median-output <path>\n";
+        return 2;
+    }
+
+    if (trimmed_output_path.empty()) {
+        std::cerr << "Missing required option: --trimmed-output <path>\n";
+        return 2;
+    }
+
+    if (metrics_output_path.empty()) {
+        std::cerr << "Missing required option: --metrics-output <path>\n";
+        return 2;
+    }
+
+    const GrayImage original = read_gray_image(input_path);
+    GrayImage noisy;
+    std::string noise_parameter_name;
+    double noise_parameter_value = 0.0;
+
+    if (noise_kind == NoiseKind::gaussian) {
+        if (!has_variance) {
+            std::cerr << "Missing required option for gaussian noise: --variance <value>\n";
+            return 2;
+        }
+
+        if (!std::isfinite(variance) || variance < 0.0) {
+            std::cerr << "Variance must be a finite non-negative value.\n";
+            return 2;
+        }
+
+        noisy = lab01::add_gaussian_noise(original, variance, seed);
+        noise_parameter_name = "variance";
+        noise_parameter_value = variance;
+    } else {
+        if (!has_probability) {
+            std::cerr << "Missing required option for impulse noise: --probability <value>\n";
+            return 2;
+        }
+
+        if (!std::isfinite(probability) || probability < 0.0 || probability > 1.0) {
+            std::cerr << "Probability must be in the [0, 1] range.\n";
+            return 2;
+        }
+
+        noisy = lab01::add_impulse_noise(original, probability, seed);
+        noise_parameter_name = "probability";
+        noise_parameter_value = probability;
+    }
+
+    const lab05::Aperture aperture = read_aperture_file(aperture_path);
+    const std::size_t active_size = lab05::active_aperture_size(aperture);
+    const std::size_t trimmed_count = static_cast<std::size_t>(trimmed_count_value);
+    if (trimmed_count >= active_size || trimmed_count % 2 != 0) {
+        std::cerr << "Trimmed count must be even and in [0, "
+                  << (active_size == 0 ? 0 : active_size - 1) << "].\n";
+        return 2;
+    }
+
+    const std::size_t median_rank = active_size / 2;
+    const GrayImage median_filtered = lab05::rank_filter_valid(noisy, aperture, median_rank);
+    const GrayImage trimmed_filtered = lab05::trimmed_mean_filter_valid(noisy, aperture, trimmed_count);
+    const GrayImage original_crop = center_crop_or_pad(original, median_filtered.width(), median_filtered.height());
+    const GrayImage noisy_crop = center_crop_or_pad(noisy, median_filtered.width(), median_filtered.height());
+
+    write_gray_image(noisy_output_path, noisy);
+    write_gray_image(median_output_path, median_filtered);
+    write_gray_image(trimmed_output_path, trimmed_filtered);
+    write_lab5_denoise_comparison_json(
+        metrics_output_path,
+        input_path,
+        noisy_output_path,
+        median_output_path,
+        trimmed_output_path,
+        noise_kind,
+        noise_parameter_name,
+        noise_parameter_value,
+        seed,
+        aperture,
+        median_rank,
+        trimmed_count,
+        original,
+        original_crop,
+        noisy_crop,
+        median_filtered,
+        trimmed_filtered
+    );
+
+    return 0;
+}
+
 int run_lab5(const std::vector<std::string>& args) {
     if (args.size() == 1 && args.front() == "--help") {
         print_lab_help(std::cout, "lab5");
@@ -2060,6 +2333,10 @@ int run_lab5(const std::vector<std::string>& args) {
 
     if (!args.empty() && args.front() == "trimmed-mean") {
         return run_lab5_trimmed_mean({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "compare-denoise") {
+        return run_lab5_compare_denoise({args.begin() + 1, args.end()});
     }
 
     std::cerr << "Unknown lab5 command.\n";

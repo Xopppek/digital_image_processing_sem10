@@ -1,0 +1,32 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab05/input/dog.jpg",
+  "noisy_output": "/home/roman/Study/digital_image_processing_sem10/images/lab05/output/dog_gaussian_var625.png",
+  "median_output": "/home/roman/Study/digital_image_processing_sem10/images/lab05/output/dog_gaussian_var625_median_full_3x3.png",
+  "trimmed_mean_output": "/home/roman/Study/digital_image_processing_sem10/images/lab05/output/dog_gaussian_var625_trimmed_mean_full_3x3_d4.png",
+  "noise_type": "gaussian",
+  "variance": 625.000000000000,
+  "seed": 1,
+  "aperture": {
+    "width": 3,
+    "height": 3,
+    "active_cells": 9
+  },
+  "median_filter": {
+    "rank": 4
+  },
+  "trimmed_mean_filter": {
+    "trimmed_count": 4,
+    "trim_each_side": 2
+  },
+  "original_width": 350,
+  "original_height": 500,
+  "comparison_width": 348,
+  "comparison_height": 498,
+  "comparison_method": "center crop original and noisy images to the valid aperture result size",
+  "noisy_mse": 619.189747495730,
+  "noisy_psnr_db": 20.212566041538,
+  "median_mse": 118.914122005262,
+  "median_psnr_db": 27.378469272352,
+  "trimmed_mean_mse": 94.080402068042,
+  "trimmed_mean_psnr_db": 28.395811961031
+}
