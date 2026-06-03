@@ -9,8 +9,8 @@
       "method": "nearest",
       "rotated_width": 2263,
       "rotated_height": 2263,
-      "rotation_ms": 229.259238000000,
-      "inverse_rotation_ms": 459.958347000000,
+      "rotation_ms": 218.348687000000,
+      "inverse_rotation_ms": 439.879975000000,
       "roundtrip_mse": 1.780587565104,
       "roundtrip_psnr_db": 45.625170247524
     },
@@ -18,8 +18,8 @@
       "method": "bilinear",
       "rotated_width": 2263,
       "rotated_height": 2263,
-      "rotation_ms": 314.744658000000,
-      "inverse_rotation_ms": 634.431252000000,
+      "rotation_ms": 306.729484000000,
+      "inverse_rotation_ms": 621.077034000000,
       "roundtrip_mse": 7.900087076823,
       "roundtrip_psnr_db": 39.154484826439
     },
@@ -27,8 +27,8 @@
       "method": "bicubic",
       "rotated_width": 2263,
       "rotated_height": 2263,
-      "rotation_ms": 756.887510000000,
-      "inverse_rotation_ms": 1566.025847000000,
+      "rotation_ms": 749.263483000000,
+      "inverse_rotation_ms": 1551.198428000000,
       "roundtrip_mse": 7.507608235677,
       "roundtrip_psnr_db": 39.375787588156
     }
