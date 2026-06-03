@@ -42,10 +42,10 @@ void print_general_help(std::ostream& output) {
            << "  dip lab4 convolve --input <path> --output <path> --kernel <path>\n"
            << "  dip lab4 threshold-lowpass --input <path> --output <path> --kernel-size <odd> --threshold <value>\n"
            << "  dip lab4 lowpass-denoise --input <path> --noise <gaussian|impulse> --kernel-size <odd> --noisy-output <path> --filtered-output <path> --metrics-output <path> [--threshold <value>]\n"
-           << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>]\n"
+           << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>] [--kernel-size <odd>]\n"
            << "  dip lab4 log-filter --input <path> --output <path> --kernel-size <odd> --sigma <value>\n"
            << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
-           << "  dip lab4 sharpen --input <path> --output <path>\n"
+           << "  dip lab4 sharpen --input <path> --output <path> [--kernel-size <odd>] [--amount <value>]\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -97,19 +97,19 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
         output << "  dip lab4 convolve --input <path> --output <path> --kernel <path>\n"
                << "  dip lab4 threshold-lowpass --input <path> --output <path> --kernel-size <odd> --threshold <value>\n"
                << "  dip lab4 lowpass-denoise --input <path> --noise <gaussian|impulse> --kernel-size <odd> --noisy-output <path> --filtered-output <path> --metrics-output <path> [--threshold <value>]\n"
-               << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>]\n"
+               << "  dip lab4 laplacian --input <path> --output <path> [--kernel <four|eight>] [--kernel-size <odd>]\n"
                << "  dip lab4 log-filter --input <path> --output <path> --kernel-size <odd> --sigma <value>\n"
                << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
-               << "  dip lab4 sharpen --input <path> --output <path>\n"
+               << "  dip lab4 sharpen --input <path> --output <path> [--kernel-size <odd>] [--amount <value>]\n"
                << "  dip lab4 --help\n\n"
                << "Available commands:\n"
                << "  convolve          Apply a 2D spatial convolution kernel and drop boundary cells.\n"
                << "  threshold-lowpass Apply an averaging low-pass filter only when the change reaches a threshold.\n"
                << "  lowpass-denoise   Add noise, apply an averaging low-pass filter, and save PSNR metrics.\n"
-               << "  laplacian         Save a normalized Laplacian response magnitude image.\n"
+               << "  laplacian         Save a normalized Laplacian response magnitude image for a chosen odd size.\n"
                << "  log-filter        Save a normalized Laplacian-of-Gaussian response magnitude image.\n"
                << "  zero-crossing     Save a binary edge map from LoG zero crossings.\n"
-               << "  sharpen           Apply a fixed 5x5 sharpening filter.\n";
+               << "  sharpen           Apply a sharpening filter of a chosen odd size.\n";
         return;
     }
 
@@ -1496,6 +1496,7 @@ int run_lab4_laplacian(const std::vector<std::string>& args) {
     std::string input_path;
     std::string output_path;
     lab04::LaplacianKernel kernel = lab04::LaplacianKernel::four_neighbor;
+    int kernel_size_value = 3;
 
     for (std::size_t i = 0; i < args.size(); ++i) {
         if (args[i] == "--input" && i + 1 < args.size()) {
@@ -1508,6 +1509,12 @@ int run_lab4_laplacian(const std::vector<std::string>& args) {
             if (!parse_laplacian_kernel(args[i + 1], kernel)) {
                 std::cerr << "Invalid Laplacian kernel for --kernel: " << args[i + 1] << '\n';
                 std::cerr << "Expected one of: four, eight.\n";
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--kernel-size" && i + 1 < args.size()) {
+            if (!parse_int(args[i + 1], kernel_size_value)) {
+                std::cerr << "Invalid integer value for --kernel-size: " << args[i + 1] << '\n';
                 return 2;
             }
             ++i;
@@ -1527,8 +1534,17 @@ int run_lab4_laplacian(const std::vector<std::string>& args) {
         return 2;
     }
 
+    if (kernel_size_value < 3 || kernel_size_value % 2 == 0) {
+        std::cerr << "Kernel size must be an odd integer not less than 3.\n";
+        return 2;
+    }
+
     const GrayImage image = read_gray_image(input_path);
-    write_gray_image(output_path, lab04::laplacian_filter(image, kernel));
+    write_gray_image(output_path, lab04::laplacian_filter(
+        image,
+        kernel,
+        static_cast<std::size_t>(kernel_size_value)
+    ));
 
     return 0;
 }
@@ -1703,6 +1719,8 @@ int run_lab4_zero_crossing(const std::vector<std::string>& args) {
 int run_lab4_sharpen(const std::vector<std::string>& args) {
     std::string input_path;
     std::string output_path;
+    int kernel_size_value = 5;
+    double amount = 1.0;
 
     for (std::size_t i = 0; i < args.size(); ++i) {
         if (args[i] == "--input" && i + 1 < args.size()) {
@@ -1710,6 +1728,18 @@ int run_lab4_sharpen(const std::vector<std::string>& args) {
             ++i;
         } else if (args[i] == "--output" && i + 1 < args.size()) {
             output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--kernel-size" && i + 1 < args.size()) {
+            if (!parse_int(args[i + 1], kernel_size_value)) {
+                std::cerr << "Invalid integer value for --kernel-size: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--amount" && i + 1 < args.size()) {
+            if (!parse_double(args[i + 1], amount)) {
+                std::cerr << "Invalid value for --amount: " << args[i + 1] << '\n';
+                return 2;
+            }
             ++i;
         } else {
             std::cerr << "Unknown or incomplete option for lab4 sharpen: " << args[i] << '\n';
@@ -1727,8 +1757,22 @@ int run_lab4_sharpen(const std::vector<std::string>& args) {
         return 2;
     }
 
+    if (kernel_size_value < 3 || kernel_size_value % 2 == 0) {
+        std::cerr << "Kernel size must be an odd integer not less than 3.\n";
+        return 2;
+    }
+
+    if (!std::isfinite(amount) || amount < 0.0) {
+        std::cerr << "Amount must be a finite non-negative value.\n";
+        return 2;
+    }
+
     const GrayImage image = read_gray_image(input_path);
-    write_gray_image(output_path, lab04::sharpening_filter(image));
+    write_gray_image(output_path, lab04::sharpening_filter(
+        image,
+        static_cast<std::size_t>(kernel_size_value),
+        amount
+    ));
 
     return 0;
 }
