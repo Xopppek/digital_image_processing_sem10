@@ -1,0 +1,15 @@
+{
+  "input": "images/lab04/input/pixel_art_invader.png",
+  "edge_output": "images/lab04/output/pixel_art_invader_zero_crossing_log_11x11_sigma2p4.png",
+  "method": "LoG zero crossing",
+  "kernel_width": 11,
+  "kernel_height": 11,
+  "sigma": 2.400000000000,
+  "threshold": 4.512301217062,
+  "threshold_method": "3 * sum(abs(I_e)) / (4 * W * H)",
+  "original_width": 32,
+  "original_height": 32,
+  "edge_width": 22,
+  "edge_height": 22,
+  "edge_pixels": 146
+}

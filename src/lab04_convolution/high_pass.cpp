@@ -48,6 +48,101 @@ bool has_zero_crossing(const double first, const double second, const double thr
            (first > 0.0 && second < 0.0);
 }
 
+std::vector<double> second_derivative_coefficients(const std::size_t size) {
+    require_odd_positive_size(size, "finite-difference stencil size");
+
+    if (size < 3) {
+        throw std::invalid_argument("finite-difference stencil size must be at least 3");
+    }
+
+    const int half_size = static_cast<int>(size / 2);
+    std::vector<std::vector<double>> matrix(size, std::vector<double>(size + 1, 0.0));
+
+    for (std::size_t power = 0; power < size; ++power) {
+        for (std::size_t column = 0; column < size; ++column) {
+            const double x = static_cast<double>(static_cast<int>(column) - half_size);
+            matrix[power][column] = std::pow(x, static_cast<int>(power));
+        }
+        matrix[power][size] = power == 2 ? 2.0 : 0.0;
+    }
+
+    for (std::size_t column = 0; column < size; ++column) {
+        std::size_t pivot_row = column;
+        for (std::size_t row = column + 1; row < size; ++row) {
+            if (std::abs(matrix[row][column]) > std::abs(matrix[pivot_row][column])) {
+                pivot_row = row;
+            }
+        }
+
+        if (std::abs(matrix[pivot_row][column]) < 1.0e-12) {
+            throw std::runtime_error("failed to calculate finite-difference coefficients");
+        }
+
+        if (pivot_row != column) {
+            std::swap(matrix[pivot_row], matrix[column]);
+        }
+
+        const double pivot = matrix[column][column];
+        for (std::size_t entry = column; entry <= size; ++entry) {
+            matrix[column][entry] /= pivot;
+        }
+
+        for (std::size_t row = 0; row < size; ++row) {
+            if (row == column) {
+                continue;
+            }
+
+            const double factor = matrix[row][column];
+            for (std::size_t entry = column; entry <= size; ++entry) {
+                matrix[row][entry] -= factor * matrix[column][entry];
+            }
+        }
+    }
+
+    std::vector<double> coefficients(size, 0.0);
+    for (std::size_t row = 0; row < size; ++row) {
+        coefficients[row] = matrix[row][size];
+    }
+
+    return coefficients;
+}
+
+void add_axis_laplacian(
+    std::vector<double>& values,
+    const std::size_t size,
+    const std::vector<double>& second_derivative,
+    const double scale
+) {
+    const std::size_t center = size / 2;
+
+    for (std::size_t index = 0; index < size; ++index) {
+        const double value = -second_derivative[index] * scale;
+        values[center * size + index] += value;
+        values[index * size + center] += value;
+    }
+}
+
+void add_diagonal_laplacian(
+    std::vector<double>& values,
+    const std::size_t size,
+    const std::vector<double>& second_derivative,
+    const double scale
+) {
+    const int center = static_cast<int>(size / 2);
+
+    for (std::size_t index = 0; index < size; ++index) {
+        const int offset = static_cast<int>(index) - center;
+        const double value = -second_derivative[index] * scale * 0.5;
+        const std::size_t first_x = static_cast<std::size_t>(center + offset);
+        const std::size_t first_y = static_cast<std::size_t>(center + offset);
+        const std::size_t second_x = static_cast<std::size_t>(center + offset);
+        const std::size_t second_y = static_cast<std::size_t>(center - offset);
+
+        values[first_y * size + first_x] += value;
+        values[second_y * size + second_x] += value;
+    }
+}
+
 } // namespace
 
 const char* laplacian_kernel_name(const LaplacianKernel kernel) noexcept {
@@ -61,20 +156,24 @@ const char* laplacian_kernel_name(const LaplacianKernel kernel) noexcept {
     return "unknown";
 }
 
-Kernel2D make_laplacian_kernel(const LaplacianKernel kernel) {
+Kernel2D make_laplacian_kernel(const LaplacianKernel kernel, const std::size_t size) {
+    require_odd_positive_size(size, "Laplacian kernel size");
+
+    if (size < 3) {
+        throw std::invalid_argument("Laplacian kernel size must be at least 3");
+    }
+
+    std::vector<double> values(size * size, 0.0);
+    const std::vector<double> derivative = second_derivative_coefficients(size);
+
     switch (kernel) {
         case LaplacianKernel::four_neighbor:
-            return {3, 3, {
-                 0.0, -1.0,  0.0,
-                -1.0,  4.0, -1.0,
-                 0.0, -1.0,  0.0,
-            }};
+            add_axis_laplacian(values, size, derivative, 1.0);
+            return {size, size, std::move(values)};
         case LaplacianKernel::eight_neighbor:
-            return {3, 3, {
-                -1.0, -1.0, -1.0,
-                -1.0,  8.0, -1.0,
-                -1.0, -1.0, -1.0,
-            }};
+            add_axis_laplacian(values, size, derivative, 0.5);
+            add_diagonal_laplacian(values, size, derivative, 0.5);
+            return {size, size, std::move(values)};
     }
 
     throw std::invalid_argument("unknown Laplacian kernel");
@@ -114,16 +213,25 @@ Kernel2D make_log_kernel(const std::size_t size, const double sigma) {
     return {size, size, std::move(values)};
 }
 
-Kernel2D make_sharpening_kernel() {
-    constexpr double scale = 1.0 / 5.0;
+Kernel2D make_sharpening_kernel(const std::size_t size, const double amount) {
+    require_odd_positive_size(size, "sharpening kernel size");
 
-    return {5, 5, {
-         0.0 * scale, -1.0 * scale, -1.0 * scale, -1.0 * scale,  0.0 * scale,
-        -1.0 * scale,  1.0 * scale,  1.0 * scale,  1.0 * scale, -1.0 * scale,
-        -1.0 * scale,  1.0 * scale,  9.0 * scale,  1.0 * scale, -1.0 * scale,
-        -1.0 * scale,  1.0 * scale,  1.0 * scale,  1.0 * scale, -1.0 * scale,
-         0.0 * scale, -1.0 * scale, -1.0 * scale, -1.0 * scale,  0.0 * scale,
-    }};
+    if (size < 3) {
+        throw std::invalid_argument("sharpening kernel size must be at least 3");
+    }
+
+    if (!std::isfinite(amount) || amount < 0.0) {
+        throw std::invalid_argument("sharpening amount must be a finite non-negative value");
+    }
+
+    Kernel2D kernel = make_laplacian_kernel(LaplacianKernel::four_neighbor, size);
+    for (double& value : kernel.values) {
+        value *= amount;
+    }
+
+    const std::size_t center = size / 2;
+    kernel.values[center * size + center] += 1.0;
+    return kernel;
 }
 
 GrayImage render_response_magnitude(const ConvolutionResponse& response) {
@@ -201,8 +309,12 @@ GrayImage zero_crossing_edges(const ConvolutionResponse& response, const double 
     return edges;
 }
 
-GrayImage laplacian_filter(const GrayImage& image, const LaplacianKernel kernel) {
-    return render_response_magnitude(convolve_valid_response(image, make_laplacian_kernel(kernel)));
+GrayImage laplacian_filter(
+    const GrayImage& image,
+    const LaplacianKernel kernel,
+    const std::size_t kernel_size
+) {
+    return render_response_magnitude(convolve_valid_response(image, make_laplacian_kernel(kernel, kernel_size)));
 }
 
 GrayImage log_filter(const GrayImage& image, const std::size_t kernel_size, const double sigma) {
@@ -213,8 +325,8 @@ ConvolutionResponse log_response(const GrayImage& image, const std::size_t kerne
     return convolve_valid_response(image, make_log_kernel(kernel_size, sigma));
 }
 
-GrayImage sharpening_filter(const GrayImage& image) {
-    return convolve_valid(image, make_sharpening_kernel());
+GrayImage sharpening_filter(const GrayImage& image, const std::size_t kernel_size, const double amount) {
+    return convolve_valid(image, make_sharpening_kernel(kernel_size, amount));
 }
 
 } // namespace dip::lab04

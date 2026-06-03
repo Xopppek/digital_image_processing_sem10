@@ -290,23 +290,33 @@ while IFS= read -r -d '' image_path; do
         echo "wrote ${convolved_path#${repo_root}/}"
     done < <(find "${lab04_kernel_dir}" -maxdepth 1 -type f -iname '*.txt' -print0 | sort -z)
 
-    sharpen_path="${lab04_output_dir}/${image_stem}_sharpen_5x5.png"
+    for sharpen_kernel_size in 3 5 7; do
+        sharpen_path="${lab04_output_dir}/${image_stem}_sharpen_${sharpen_kernel_size}x${sharpen_kernel_size}.png"
 
-    "${binary}" lab4 sharpen \
-        --input "${image_path}" \
-        --output "${sharpen_path}"
-
-    echo "wrote ${sharpen_path#${repo_root}/}"
-
-    for laplacian_kernel in four eight; do
-        laplacian_path="${lab04_output_dir}/${image_stem}_laplacian_${laplacian_kernel}.png"
-
-        "${binary}" lab4 laplacian \
+        "${binary}" lab4 sharpen \
             --input "${image_path}" \
-            --output "${laplacian_path}" \
-            --kernel "${laplacian_kernel}"
+            --output "${sharpen_path}" \
+            --kernel-size "${sharpen_kernel_size}" \
+            --amount 1.0
 
-        echo "wrote ${laplacian_path#${repo_root}/}"
+        echo "wrote ${sharpen_path#${repo_root}/}"
+    done
+
+    for laplacian_kernel_size in 3 5; do
+        for laplacian_kernel in four eight; do
+            laplacian_path="${lab04_output_dir}/${image_stem}_laplacian_${laplacian_kernel}.png"
+            if [[ "${laplacian_kernel_size}" -ne 3 ]]; then
+                laplacian_path="${lab04_output_dir}/${image_stem}_laplacian_${laplacian_kernel}_${laplacian_kernel_size}x${laplacian_kernel_size}.png"
+            fi
+
+            "${binary}" lab4 laplacian \
+                --input "${image_path}" \
+                --output "${laplacian_path}" \
+                --kernel "${laplacian_kernel}" \
+                --kernel-size "${laplacian_kernel_size}"
+
+            echo "wrote ${laplacian_path#${repo_root}/}"
+        done
     done
 
     log_kernel_size=7
@@ -334,6 +344,22 @@ while IFS= read -r -d '' image_path; do
 
     echo "wrote ${zero_crossing_path#${repo_root}/}"
     echo "wrote ${zero_crossing_metrics_path#${repo_root}/}"
+
+    strong_log_kernel_size=11
+    strong_log_sigma=2.4
+    strong_log_sigma_label="2p4"
+    strong_zero_crossing_path="${lab04_output_dir}/${image_stem}_zero_crossing_log_${strong_log_kernel_size}x${strong_log_kernel_size}_sigma${strong_log_sigma_label}.png"
+    strong_zero_crossing_metrics_path="${lab04_output_dir}/${image_stem}_zero_crossing_log_${strong_log_kernel_size}x${strong_log_kernel_size}_sigma${strong_log_sigma_label}.json"
+
+    "${binary}" lab4 zero-crossing \
+        --input "${image_path}" \
+        --output "${strong_zero_crossing_path}" \
+        --kernel-size "${strong_log_kernel_size}" \
+        --sigma "${strong_log_sigma}" \
+        --metrics-output "${strong_zero_crossing_metrics_path}"
+
+    echo "wrote ${strong_zero_crossing_path#${repo_root}/}"
+    echo "wrote ${strong_zero_crossing_metrics_path#${repo_root}/}"
 
     lowpass_kernel_size=3
     threshold_value=20
