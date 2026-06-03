@@ -10,6 +10,7 @@
 #include "lab04_convolution/convolution.hpp"
 #include "lab04_convolution/high_pass.hpp"
 #include "lab04_convolution/low_pass.hpp"
+#include "lab05_nonlinear/morphology.hpp"
 #include "lab05_nonlinear/rank_filter.hpp"
 
 #include <array>
@@ -49,6 +50,7 @@ void print_general_help(std::ostream& output) {
            << "  dip lab4 sharpen --input <path> --output <path> [--kernel-size <odd>] [--amount <value>]\n"
            << "  dip lab5 rank --input <path> --output <path> --aperture <path> --rank <index|min|median|max>\n"
            << "  dip lab5 trimmed-mean --input <path> --output <path> --aperture <path> --trimmed-count <even>\n"
+           << "  dip lab5 morphology --input <path> --output <path> --aperture <path> --operation <erosion|dilation|opening|closing>\n"
            << "  dip lab5 compare-denoise --input <path> --noise <gaussian|impulse> --aperture <path> --trimmed-count <even> --noisy-output <path> --median-output <path> --trimmed-output <path> --metrics-output <path>\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
@@ -120,11 +122,13 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
     if (lab == "lab5") {
         output << "  dip lab5 rank --input <path> --output <path> --aperture <path> --rank <index|min|median|max>\n"
                << "  dip lab5 trimmed-mean --input <path> --output <path> --aperture <path> --trimmed-count <even>\n"
+               << "  dip lab5 morphology --input <path> --output <path> --aperture <path> --operation <erosion|dilation|opening|closing>\n"
                << "  dip lab5 compare-denoise --input <path> --noise <gaussian|impulse> --aperture <path> --trimmed-count <even> --noisy-output <path> --median-output <path> --trimmed-output <path> --metrics-output <path>\n"
                << "  dip lab5 --help\n\n"
                << "Available commands:\n"
-               << "  rank          Apply rank filtering with an arbitrary aperture mask.\n"
-               << "  trimmed-mean  Apply trimmed mean filtering with an arbitrary aperture mask.\n"
+               << "  rank             Apply rank filtering with an arbitrary aperture mask.\n"
+               << "  trimmed-mean     Apply trimmed mean filtering with an arbitrary aperture mask.\n"
+               << "  morphology       Apply grayscale erosion, dilation, opening, or closing.\n"
                << "  compare-denoise  Compare median and trimmed mean filters by PSNR.\n";
         return;
     }
@@ -611,6 +615,37 @@ bool parse_rank(const std::string& text, const std::size_t active_size, std::siz
     } catch (const std::exception&) {
         return false;
     }
+}
+
+enum class MorphologyOperation {
+    erosion,
+    dilation,
+    opening,
+    closing
+};
+
+bool parse_morphology_operation(const std::string& text, MorphologyOperation& operation) {
+    if (text == "erosion" || text == "erode") {
+        operation = MorphologyOperation::erosion;
+        return true;
+    }
+
+    if (text == "dilation" || text == "dilate") {
+        operation = MorphologyOperation::dilation;
+        return true;
+    }
+
+    if (text == "opening" || text == "open") {
+        operation = MorphologyOperation::opening;
+        return true;
+    }
+
+    if (text == "closing" || text == "close") {
+        operation = MorphologyOperation::closing;
+        return true;
+    }
+
+    return false;
 }
 
 GrayImage center_crop_or_pad(
@@ -2123,6 +2158,81 @@ int run_lab5_trimmed_mean(const std::vector<std::string>& args) {
     return 0;
 }
 
+int run_lab5_morphology(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string aperture_path;
+    std::string operation_text;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--aperture" && i + 1 < args.size()) {
+            aperture_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--operation" && i + 1 < args.size()) {
+            operation_text = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab5 morphology: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (aperture_path.empty()) {
+        std::cerr << "Missing required option: --aperture <path>\n";
+        return 2;
+    }
+
+    if (operation_text.empty()) {
+        std::cerr << "Missing required option: --operation <erosion|dilation|opening|closing>\n";
+        return 2;
+    }
+
+    MorphologyOperation operation = MorphologyOperation::erosion;
+    if (!parse_morphology_operation(operation_text, operation)) {
+        std::cerr << "Operation must be one of: erosion, dilation, opening, closing.\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    const lab05::Aperture aperture = read_aperture_file(aperture_path);
+
+    GrayImage result;
+    switch (operation) {
+        case MorphologyOperation::erosion:
+            result = lab05::erosion_valid(image, aperture);
+            break;
+        case MorphologyOperation::dilation:
+            result = lab05::dilation_valid(image, aperture);
+            break;
+        case MorphologyOperation::opening:
+            result = lab05::opening_valid(image, aperture);
+            break;
+        case MorphologyOperation::closing:
+            result = lab05::closing_valid(image, aperture);
+            break;
+    }
+
+    write_gray_image(output_path, result);
+
+    return 0;
+}
+
 int run_lab5_compare_denoise(const std::vector<std::string>& args) {
     std::string input_path;
     std::string aperture_path;
@@ -2333,6 +2443,10 @@ int run_lab5(const std::vector<std::string>& args) {
 
     if (!args.empty() && args.front() == "trimmed-mean") {
         return run_lab5_trimmed_mean({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "morphology") {
+        return run_lab5_morphology({args.begin() + 1, args.end()});
     }
 
     if (!args.empty() && args.front() == "compare-denoise") {

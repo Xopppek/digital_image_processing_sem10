@@ -468,6 +468,7 @@ fi
 if should_run "lab05"; then
 lab05_output_dir="${repo_root}/images/lab05/output"
 lab05_input_dir="${repo_root}/images/lab05/input"
+lab05_morphology_input_dir="${lab05_input_dir}/morphology"
 lab05_aperture_dir="${lab05_input_dir}/apertures"
 mkdir -p "${lab05_output_dir}"
 
@@ -574,6 +575,26 @@ while IFS= read -r -d '' image_path; do
     echo "wrote ${impulse_metrics_path#${repo_root}/}"
 done < <(find "${lab05_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+
+    for operation_name in erosion dilation opening closing; do
+        morphology_path="${lab05_output_dir}/${image_stem}_morphology_full_3x3_${operation_name}.png"
+
+        "${binary}" lab5 morphology \
+            --input "${image_path}" \
+            --output "${morphology_path}" \
+            --aperture "${lab05_aperture_dir}/full_3x3.txt" \
+            --operation "${operation_name}"
+
+        echo "wrote ${morphology_path#${repo_root}/}"
+    done
+done < <(find "${lab05_morphology_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.pgm' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
 fi
 

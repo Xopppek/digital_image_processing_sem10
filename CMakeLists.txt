@@ -26,6 +26,7 @@ add_executable(dip
     src/lab04_convolution/convolution.cpp
     src/lab04_convolution/high_pass.cpp
     src/lab04_convolution/low_pass.cpp
+    src/lab05_nonlinear/morphology.cpp
     src/lab05_nonlinear/rank_filter.cpp
 )
 
