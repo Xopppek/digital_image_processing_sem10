@@ -16,5 +16,10 @@ struct Aperture {
 
 [[nodiscard]] std::size_t active_aperture_size(const Aperture& aperture);
 [[nodiscard]] GrayImage rank_filter_valid(const GrayImage& image, const Aperture& aperture, std::size_t rank);
+[[nodiscard]] GrayImage trimmed_mean_filter_valid(
+    const GrayImage& image,
+    const Aperture& aperture,
+    std::size_t trimmed_count
+);
 
 } // namespace dip::lab05

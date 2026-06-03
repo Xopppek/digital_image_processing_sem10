@@ -48,6 +48,7 @@ void print_general_help(std::ostream& output) {
            << "  dip lab4 zero-crossing --input <path> --output <path> --kernel-size <odd> --sigma <value> [--metrics-output <path>]\n"
            << "  dip lab4 sharpen --input <path> --output <path> [--kernel-size <odd>] [--amount <value>]\n"
            << "  dip lab5 rank --input <path> --output <path> --aperture <path> --rank <index|min|median|max>\n"
+           << "  dip lab5 trimmed-mean --input <path> --output <path> --aperture <path> --trimmed-count <even>\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
@@ -117,9 +118,11 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
 
     if (lab == "lab5") {
         output << "  dip lab5 rank --input <path> --output <path> --aperture <path> --rank <index|min|median|max>\n"
+               << "  dip lab5 trimmed-mean --input <path> --output <path> --aperture <path> --trimmed-count <even>\n"
                << "  dip lab5 --help\n\n"
                << "Available commands:\n"
-               << "  rank  Apply rank filtering with an arbitrary aperture mask.\n";
+               << "  rank          Apply rank filtering with an arbitrary aperture mask.\n"
+               << "  trimmed-mean  Apply trimmed mean filtering with an arbitrary aperture mask.\n";
         return;
     }
 
@@ -1975,6 +1978,76 @@ int run_lab5_rank(const std::vector<std::string>& args) {
     return 0;
 }
 
+int run_lab5_trimmed_mean(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string aperture_path;
+    int trimmed_count_value = 0;
+    bool has_trimmed_count = false;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--aperture" && i + 1 < args.size()) {
+            aperture_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--trimmed-count" && i + 1 < args.size()) {
+            if (!parse_int(args[i + 1], trimmed_count_value)) {
+                std::cerr << "Invalid integer value for --trimmed-count: " << args[i + 1] << '\n';
+                return 2;
+            }
+            has_trimmed_count = true;
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for lab5 trimmed-mean: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    if (aperture_path.empty()) {
+        std::cerr << "Missing required option: --aperture <path>\n";
+        return 2;
+    }
+
+    if (!has_trimmed_count) {
+        std::cerr << "Missing required option: --trimmed-count <even>\n";
+        return 2;
+    }
+
+    if (trimmed_count_value < 0) {
+        std::cerr << "Trimmed count must be non-negative.\n";
+        return 2;
+    }
+
+    const lab05::Aperture aperture = read_aperture_file(aperture_path);
+    const std::size_t active_size = lab05::active_aperture_size(aperture);
+    const std::size_t trimmed_count = static_cast<std::size_t>(trimmed_count_value);
+    if (trimmed_count >= active_size || trimmed_count % 2 != 0) {
+        std::cerr << "Trimmed count must be even and in [0, "
+                  << (active_size == 0 ? 0 : active_size - 1) << "].\n";
+        return 2;
+    }
+
+    const GrayImage image = read_gray_image(input_path);
+    write_gray_image(output_path, lab05::trimmed_mean_filter_valid(image, aperture, trimmed_count));
+
+    return 0;
+}
+
 int run_lab5(const std::vector<std::string>& args) {
     if (args.size() == 1 && args.front() == "--help") {
         print_lab_help(std::cout, "lab5");
@@ -1983,6 +2056,10 @@ int run_lab5(const std::vector<std::string>& args) {
 
     if (!args.empty() && args.front() == "rank") {
         return run_lab5_rank({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "trimmed-mean") {
+        return run_lab5_trimmed_mean({args.begin() + 1, args.end()});
     }
 
     std::cerr << "Unknown lab5 command.\n";

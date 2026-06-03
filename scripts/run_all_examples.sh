@@ -499,6 +499,18 @@ while IFS= read -r -d '' image_path; do
 
         echo "wrote ${rank_path#${repo_root}/}"
     done
+
+    for trimmed_count in 0 4 8; do
+        trimmed_path="${lab05_output_dir}/${image_stem}_trimmed_mean_full_3x3_d${trimmed_count}.png"
+
+        "${binary}" lab5 trimmed-mean \
+            --input "${image_path}" \
+            --output "${trimmed_path}" \
+            --aperture "${lab05_aperture_dir}/full_3x3.txt" \
+            --trimmed-count "${trimmed_count}"
+
+        echo "wrote ${trimmed_path#${repo_root}/}"
+    done
 done < <(find "${lab05_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
