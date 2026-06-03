@@ -15,6 +15,7 @@ Labs:
   lab2, lab02, 2
   lab3, lab03, 3
   lab4, lab04, 4
+  lab5, lab05, 5
   all
 
 With no lab argument, all implemented labs are run.
@@ -37,6 +38,9 @@ normalize_lab() {
             ;;
         4|lab4|lab04)
             echo "lab04"
+            ;;
+        5|lab5|lab05)
+            echo "lab05"
             ;;
         *)
             echo "Unknown lab selector: $1" >&2
@@ -80,6 +84,7 @@ select_all_labs() {
     selected_labs["lab02"]=1
     selected_labs["lab03"]=1
     selected_labs["lab04"]=1
+    selected_labs["lab05"]=1
 }
 
 if [[ "${#selected_lab_args[@]}" -eq 0 ]]; then
@@ -457,6 +462,139 @@ while IFS= read -r -d '' image_path; do
     echo "wrote ${impulse_threshold_metrics_path#${repo_root}/}"
 done < <(find "${lab04_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+fi
+
+if should_run "lab05"; then
+lab05_output_dir="${repo_root}/images/lab05/output"
+lab05_input_dir="${repo_root}/images/lab05/input"
+lab05_morphology_input_dir="${lab05_input_dir}/morphology"
+lab05_aperture_dir="${lab05_input_dir}/apertures"
+mkdir -p "${lab05_output_dir}"
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+
+    for rank_name in min median max; do
+        rank_path="${lab05_output_dir}/${image_stem}_rank_full_3x3_${rank_name}.png"
+
+        "${binary}" lab5 rank \
+            --input "${image_path}" \
+            --output "${rank_path}" \
+            --aperture "${lab05_aperture_dir}/full_3x3.txt" \
+            --rank "${rank_name}"
+
+        echo "wrote ${rank_path#${repo_root}/}"
+    done
+
+    for aperture_name in cross_5x5 diamond_5x5; do
+        rank_path="${lab05_output_dir}/${image_stem}_rank_${aperture_name}_median.png"
+
+        "${binary}" lab5 rank \
+            --input "${image_path}" \
+            --output "${rank_path}" \
+            --aperture "${lab05_aperture_dir}/${aperture_name}.txt" \
+            --rank median
+
+        echo "wrote ${rank_path#${repo_root}/}"
+    done
+
+    for trimmed_count in 0 4 8; do
+        trimmed_path="${lab05_output_dir}/${image_stem}_trimmed_mean_full_3x3_d${trimmed_count}.png"
+
+        "${binary}" lab5 trimmed-mean \
+            --input "${image_path}" \
+            --output "${trimmed_path}" \
+            --aperture "${lab05_aperture_dir}/full_3x3.txt" \
+            --trimmed-count "${trimmed_count}"
+
+        echo "wrote ${trimmed_path#${repo_root}/}"
+    done
+
+    gaussian_variance=625
+    impulse_probability=0.06
+    impulse_label="p006"
+
+    case "${image_stem}" in
+        bnw)
+            gaussian_variance=400
+            impulse_probability=0.05
+            impulse_label="p005"
+            ;;
+        pixel_art_invader)
+            gaussian_variance=225
+            impulse_probability=0.10
+            impulse_label="p010"
+            ;;
+    esac
+
+    gaussian_noisy_path="${lab05_output_dir}/${image_stem}_gaussian_var${gaussian_variance}.png"
+    gaussian_median_path="${lab05_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_median_full_3x3.png"
+    gaussian_trimmed_path="${lab05_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_trimmed_mean_full_3x3_d4.png"
+    gaussian_metrics_path="${lab05_output_dir}/${image_stem}_gaussian_var${gaussian_variance}_median_vs_trimmed_mean_full_3x3_psnr.json"
+
+    "${binary}" lab5 compare-denoise \
+        --input "${image_path}" \
+        --noise gaussian \
+        --variance "${gaussian_variance}" \
+        --aperture "${lab05_aperture_dir}/full_3x3.txt" \
+        --trimmed-count 4 \
+        --seed 1 \
+        --noisy-output "${gaussian_noisy_path}" \
+        --median-output "${gaussian_median_path}" \
+        --trimmed-output "${gaussian_trimmed_path}" \
+        --metrics-output "${gaussian_metrics_path}"
+
+    echo "wrote ${gaussian_noisy_path#${repo_root}/}"
+    echo "wrote ${gaussian_median_path#${repo_root}/}"
+    echo "wrote ${gaussian_trimmed_path#${repo_root}/}"
+    echo "wrote ${gaussian_metrics_path#${repo_root}/}"
+
+    impulse_noisy_path="${lab05_output_dir}/${image_stem}_impulse_${impulse_label}.png"
+    impulse_median_path="${lab05_output_dir}/${image_stem}_impulse_${impulse_label}_median_full_3x3.png"
+    impulse_trimmed_path="${lab05_output_dir}/${image_stem}_impulse_${impulse_label}_trimmed_mean_full_3x3_d4.png"
+    impulse_metrics_path="${lab05_output_dir}/${image_stem}_impulse_${impulse_label}_median_vs_trimmed_mean_full_3x3_psnr.json"
+
+    "${binary}" lab5 compare-denoise \
+        --input "${image_path}" \
+        --noise impulse \
+        --probability "${impulse_probability}" \
+        --aperture "${lab05_aperture_dir}/full_3x3.txt" \
+        --trimmed-count 4 \
+        --seed 1 \
+        --noisy-output "${impulse_noisy_path}" \
+        --median-output "${impulse_median_path}" \
+        --trimmed-output "${impulse_trimmed_path}" \
+        --metrics-output "${impulse_metrics_path}"
+
+    echo "wrote ${impulse_noisy_path#${repo_root}/}"
+    echo "wrote ${impulse_median_path#${repo_root}/}"
+    echo "wrote ${impulse_trimmed_path#${repo_root}/}"
+    echo "wrote ${impulse_metrics_path#${repo_root}/}"
+done < <(find "${lab05_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+
+    for operation_name in erosion dilation opening closing; do
+        morphology_path="${lab05_output_dir}/${image_stem}_morphology_full_3x3_${operation_name}.png"
+
+        "${binary}" lab5 morphology \
+            --input "${image_path}" \
+            --output "${morphology_path}" \
+            --aperture "${lab05_aperture_dir}/full_3x3.txt" \
+            --operation "${operation_name}"
+
+        echo "wrote ${morphology_path#${repo_root}/}"
+    done
+done < <(find "${lab05_morphology_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.pgm' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
 fi
 

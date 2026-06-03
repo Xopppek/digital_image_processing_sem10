@@ -1,0 +1,32 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab05/input/pixel_art_invader.png",
+  "noisy_output": "/home/roman/Study/digital_image_processing_sem10/images/lab05/output/pixel_art_invader_gaussian_var225.png",
+  "median_output": "/home/roman/Study/digital_image_processing_sem10/images/lab05/output/pixel_art_invader_gaussian_var225_median_full_3x3.png",
+  "trimmed_mean_output": "/home/roman/Study/digital_image_processing_sem10/images/lab05/output/pixel_art_invader_gaussian_var225_trimmed_mean_full_3x3_d4.png",
+  "noise_type": "gaussian",
+  "variance": 225.000000000000,
+  "seed": 1,
+  "aperture": {
+    "width": 3,
+    "height": 3,
+    "active_cells": 9
+  },
+  "median_filter": {
+    "rank": 4
+  },
+  "trimmed_mean_filter": {
+    "trimmed_count": 4,
+    "trim_each_side": 2
+  },
+  "original_width": 32,
+  "original_height": 32,
+  "comparison_width": 30,
+  "comparison_height": 30,
+  "comparison_method": "center crop original and noisy images to the valid aperture result size",
+  "noisy_mse": 218.921111111111,
+  "noisy_psnr_db": 24.727927171758,
+  "median_mse": 1055.472222222222,
+  "median_psnr_db": 17.896335527783,
+  "trimmed_mean_mse": 865.844444444444,
+  "trimmed_mean_psnr_db": 18.756404861573
+}
