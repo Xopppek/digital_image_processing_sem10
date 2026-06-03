@@ -16,6 +16,7 @@ Labs:
   lab3, lab03, 3
   lab4, lab04, 4
   lab5, lab05, 5
+  lab6, lab06, 6
   all
 
 With no lab argument, all implemented labs are run.
@@ -41,6 +42,9 @@ normalize_lab() {
             ;;
         5|lab5|lab05)
             echo "lab05"
+            ;;
+        6|lab6|lab06)
+            echo "lab06"
             ;;
         *)
             echo "Unknown lab selector: $1" >&2
@@ -85,6 +89,7 @@ select_all_labs() {
     selected_labs["lab03"]=1
     selected_labs["lab04"]=1
     selected_labs["lab05"]=1
+    selected_labs["lab06"]=1
 }
 
 if [[ "${#selected_lab_args[@]}" -eq 0 ]]; then
@@ -595,6 +600,30 @@ while IFS= read -r -d '' image_path; do
     done
 done < <(find "${lab05_morphology_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.pgm' -o -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+fi
+
+if should_run "lab06"; then
+lab06_output_dir="${repo_root}/images/lab06/output"
+lab06_input_dir="${repo_root}/images/lab06/input"
+mkdir -p "${lab06_output_dir}"
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+    binary_path="${lab06_output_dir}/${image_stem}_otsu_binary.png"
+    metrics_path="${lab06_output_dir}/${image_stem}_otsu.json"
+
+    "${binary}" lab6 otsu \
+        --input "${image_path}" \
+        --output "${binary_path}" \
+        --metrics-output "${metrics_path}"
+
+    echo "wrote ${binary_path#${repo_root}/}"
+    echo "wrote ${metrics_path#${repo_root}/}"
+done < <(find "${lab06_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
 fi
 

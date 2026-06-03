@@ -1,0 +1,24 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab06/input/metal.jpg",
+  "binary_output": "/home/roman/Study/digital_image_processing_sem10/images/lab06/output/metal_otsu_binary.png",
+  "method": "Otsu thresholding",
+  "width": 700,
+  "height": 700,
+  "threshold": 218,
+  "class_0": {
+    "condition": "pixel <= threshold",
+    "output_value": 0,
+    "pixel_count": 70558,
+    "probability": 0.143995918367,
+    "mean": 183.745457637688
+  },
+  "class_1": {
+    "condition": "pixel > threshold",
+    "output_value": 255,
+    "pixel_count": 419442,
+    "probability": 0.856004081633,
+    "mean": 253.959195788691
+  },
+  "within_class_variance": 170.849724602237,
+  "between_class_variance": 607.673374738767
+}
