@@ -11,6 +11,13 @@ namespace {
 
 constexpr double pi = 3.141592653589793238462643383279502884;
 
+using Sampler = GrayImage::Pixel (*)(
+    const GrayImage& image,
+    double x,
+    double y,
+    GrayImage::Pixel background
+);
+
 struct Bounds {
     double min_x{0.0};
     double max_x{0.0};
@@ -227,23 +234,17 @@ GrayImage::Pixel sample_bicubic(
     return clamp_to_pixel(cubic_interpolate(rows[0], rows[1], rows[2], rows[3], dy));
 }
 
-GrayImage::Pixel sample(
-    const GrayImage& image,
-    const double x,
-    const double y,
-    const InterpolationMethod method,
-    const GrayImage::Pixel background
-) {
+Sampler select_sampler(const InterpolationMethod method) {
     switch (method) {
         case InterpolationMethod::nearest:
-            return sample_nearest(image, x, y, background);
+            return sample_nearest;
         case InterpolationMethod::bilinear:
-            return sample_bilinear(image, x, y, background);
+            return sample_bilinear;
         case InterpolationMethod::bicubic:
-            return sample_bicubic(image, x, y, background);
+            return sample_bicubic;
     }
 
-    return background;
+    throw std::invalid_argument("unknown interpolation method");
 }
 
 }
@@ -291,6 +292,7 @@ GrayImage rotate_image(
 
     const double source_center_x = static_cast<double>(image.width()) / 2.0;
     const double source_center_y = static_cast<double>(image.height()) / 2.0;
+    const Sampler sampler = select_sampler(method);
 
     for (std::size_t row = 0; row < output_height; ++row) {
         const double rotated_y = bounds.min_y + static_cast<double>(row) + 0.5;
@@ -301,7 +303,7 @@ GrayImage rotate_image(
             const double source_x = source.x + source_center_x - 0.5;
             const double source_y = source.y + source_center_y - 0.5;
 
-            result.at(column, row) = sample(image, source_x, source_y, method, background);
+            result.at(column, row) = sampler(image, source_x, source_y, background);
         }
     }
 

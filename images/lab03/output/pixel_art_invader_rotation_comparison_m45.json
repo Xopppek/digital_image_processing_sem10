@@ -9,8 +9,8 @@
       "method": "nearest",
       "rotated_width": 46,
       "rotated_height": 46,
-      "rotation_ms": 0.206315000000,
-      "inverse_rotation_ms": 0.442240000000,
+      "rotation_ms": 0.239376000000,
+      "inverse_rotation_ms": 0.487029000000,
       "roundtrip_mse": 5591.113281250000,
       "roundtrip_psnr_db": 10.655820693026
     },
@@ -18,8 +18,8 @@
       "method": "bilinear",
       "rotated_width": 46,
       "rotated_height": 46,
-      "rotation_ms": 0.287717000000,
-      "inverse_rotation_ms": 0.612127000000,
+      "rotation_ms": 0.319675000000,
+      "inverse_rotation_ms": 0.646392000000,
       "roundtrip_mse": 3684.837890625000,
       "roundtrip_psnr_db": 12.466619744410
     },
@@ -27,8 +27,8 @@
       "method": "bicubic",
       "rotated_width": 46,
       "rotated_height": 46,
-      "rotation_ms": 0.876930000000,
-      "inverse_rotation_ms": 1.646262000000,
+      "rotation_ms": 0.701062000000,
+      "inverse_rotation_ms": 1.298571000000,
       "roundtrip_mse": 4031.554687500000,
       "roundtrip_psnr_db": 12.076078055460
     }
