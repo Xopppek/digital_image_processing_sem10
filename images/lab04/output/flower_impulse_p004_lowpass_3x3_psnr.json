@@ -1,0 +1,22 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab04/input/flower.jpg",
+  "noisy_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/flower_impulse_p004.png",
+  "filtered_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/flower_impulse_p004_lowpass_3x3.png",
+  "noise_type": "impulse",
+  "probability": 0.040000000000,
+  "seed": 1,
+  "filter": {
+    "type": "average_low_pass",
+    "kernel_width": 3,
+    "kernel_height": 3
+  },
+  "original_width": 1920,
+  "original_height": 1280,
+  "comparison_width": 1918,
+  "comparison_height": 1278,
+  "comparison_method": "center crop original and noisy images to the valid convolution result size",
+  "noisy_mse": 745.229507621561,
+  "noisy_psnr_db": 19.407903182622,
+  "filtered_mse": 87.352788262421,
+  "filtered_psnr_db": 28.718035888397
+}

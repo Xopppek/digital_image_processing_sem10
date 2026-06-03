@@ -1,0 +1,22 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab04/input/imagesample.jpg",
+  "noisy_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/imagesample_gaussian_var625.png",
+  "filtered_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/imagesample_gaussian_var625_lowpass_3x3.png",
+  "noise_type": "gaussian",
+  "variance": 625.000000000000,
+  "seed": 1,
+  "filter": {
+    "type": "average_low_pass",
+    "kernel_width": 3,
+    "kernel_height": 3
+  },
+  "original_width": 1920,
+  "original_height": 1200,
+  "comparison_width": 1918,
+  "comparison_height": 1198,
+  "comparison_method": "center crop original and noisy images to the valid convolution result size",
+  "noisy_mse": 606.130816741841,
+  "noisy_psnr_db": 20.305139960120,
+  "filtered_mse": 134.851372464709,
+  "filtered_psnr_db": 26.832249899765
+}

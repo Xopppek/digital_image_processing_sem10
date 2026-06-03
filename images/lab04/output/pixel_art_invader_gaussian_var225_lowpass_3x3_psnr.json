@@ -1,0 +1,22 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab04/input/pixel_art_invader.png",
+  "noisy_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/pixel_art_invader_gaussian_var225.png",
+  "filtered_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/pixel_art_invader_gaussian_var225_lowpass_3x3.png",
+  "noise_type": "gaussian",
+  "variance": 225.000000000000,
+  "seed": 1,
+  "filter": {
+    "type": "average_low_pass",
+    "kernel_width": 3,
+    "kernel_height": 3
+  },
+  "original_width": 32,
+  "original_height": 32,
+  "comparison_width": 30,
+  "comparison_height": 30,
+  "comparison_method": "center crop original and noisy images to the valid convolution result size",
+  "noisy_mse": 218.921111111111,
+  "noisy_psnr_db": 24.727927171758,
+  "filtered_mse": 1446.425555555556,
+  "filtered_psnr_db": 16.527842745213
+}

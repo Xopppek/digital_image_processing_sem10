@@ -1,0 +1,15 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab04/input/bnw.png",
+  "edge_output": "/home/roman/Study/digital_image_processing_sem10/images/lab04/output/bnw_zero_crossing_log_7x7_sigma1p4.png",
+  "method": "LoG zero crossing",
+  "kernel_width": 7,
+  "kernel_height": 7,
+  "sigma": 1.400000000000,
+  "threshold": 1.828378332447,
+  "threshold_method": "3 * sum(abs(I_e)) / (4 * W * H)",
+  "original_width": 1120,
+  "original_height": 1120,
+  "edge_width": 1114,
+  "edge_height": 1114,
+  "edge_pixels": 219061
+}
