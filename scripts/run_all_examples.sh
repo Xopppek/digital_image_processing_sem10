@@ -17,9 +17,10 @@ Labs:
   lab4, lab04, 4
   lab5, lab05, 5
   lab6, lab06, 6
+  homework, hw
   all
 
-With no lab argument, all implemented labs are run.
+With no lab argument, all implemented labs and homework examples are run.
 EOF
 }
 
@@ -45,6 +46,9 @@ normalize_lab() {
             ;;
         6|lab6|lab06)
             echo "lab06"
+            ;;
+        homework|hw)
+            echo "homework"
             ;;
         *)
             echo "Unknown lab selector: $1" >&2
@@ -90,6 +94,7 @@ select_all_labs() {
     selected_labs["lab04"]=1
     selected_labs["lab05"]=1
     selected_labs["lab06"]=1
+    selected_labs["homework"]=1
 }
 
 if [[ "${#selected_lab_args[@]}" -eq 0 ]]; then
@@ -655,6 +660,38 @@ while IFS= read -r -d '' image_path; do
     fi
 done < <(find "${lab06_components_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.pgm' -o -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+fi
+
+if should_run "homework"; then
+homework_input_dir="${repo_root}/images/homework/input"
+homework_output_dir="${repo_root}/images/homework/output"
+mkdir -p "${homework_output_dir}"
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+    read_path="${homework_output_dir}/${image_stem}.png"
+    blocks_path="${homework_output_dir}/${image_stem}_blocks.png"
+    blocks_metrics_path="${homework_output_dir}/${image_stem}_blocks.json"
+
+    "${binary}" homework read-tiff \
+        --input "${image_path}" \
+        --output "${read_path}"
+
+    echo "wrote ${read_path#${repo_root}/}"
+
+    "${binary}" homework classify-blocks \
+        --input "${image_path}" \
+        --output "${blocks_path}" \
+        --block-size 64 \
+        --metrics-output "${blocks_metrics_path}"
+
+    echo "wrote ${blocks_path#${repo_root}/}"
+    echo "wrote ${blocks_metrics_path#${repo_root}/}"
+done < <(find "${homework_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
 fi
 
