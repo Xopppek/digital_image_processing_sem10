@@ -183,20 +183,13 @@ GrayImage::Pixel sample_bilinear(
     return clamp_to_pixel(top * (1.0 - dy) + bottom * dy);
 }
 
-double cubic_interpolate(
-    const double p0,
-    const double p1,
-    const double p2,
-    const double p3,
-    const double t
-) {
-    return p1 + 0.5 * t * (
-        p2 - p0 +
-        t * (
-            2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3 +
-            t * (3.0 * (p1 - p2) + p3 - p0)
-        )
-    );
+std::array<double, 4> cubic_lagrange_basis(const double t) {
+    return {{
+        -t * (t - 1.0) * (t - 2.0) / 6.0,
+        (t + 1.0) * (t - 1.0) * (t - 2.0) / 2.0,
+        -(t + 1.0) * t * (t - 2.0) / 2.0,
+        (t + 1.0) * t * (t - 1.0) / 6.0,
+    }};
 }
 
 GrayImage::Pixel sample_bicubic(
@@ -218,20 +211,26 @@ GrayImage::Pixel sample_bicubic(
     const int base_y = static_cast<int>(std::floor(y));
     const double dx = x - static_cast<double>(base_x);
     const double dy = y - static_cast<double>(base_y);
+    const std::array<double, 4> x_basis = cubic_lagrange_basis(dx);
+    const std::array<double, 4> y_basis = cubic_lagrange_basis(dy);
 
-    std::array<double, 4> rows{};
+    double interpolated = 0.0;
     for (int row_offset = -1; row_offset <= 2; ++row_offset) {
-        std::array<double, 4> values{};
         for (int column_offset = -1; column_offset <= 2; ++column_offset) {
-            values[static_cast<std::size_t>(column_offset + 1)] =
-                pixel_or_background(image, base_x + column_offset, base_y + row_offset, background);
+            const double pixel = pixel_or_background(
+                image,
+                base_x + column_offset,
+                base_y + row_offset,
+                background
+            );
+            interpolated +=
+                x_basis[static_cast<std::size_t>(column_offset + 1)] *
+                y_basis[static_cast<std::size_t>(row_offset + 1)] *
+                pixel;
         }
-
-        rows[static_cast<std::size_t>(row_offset + 1)] =
-            cubic_interpolate(values[0], values[1], values[2], values[3], dx);
     }
 
-    return clamp_to_pixel(cubic_interpolate(rows[0], rows[1], rows[2], rows[3], dy));
+    return clamp_to_pixel(interpolated);
 }
 
 Sampler select_sampler(const InterpolationMethod method) {

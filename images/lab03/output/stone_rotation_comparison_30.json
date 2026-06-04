@@ -1,0 +1,36 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab03/input/stone.jpg",
+  "angle_degrees": 30.000000000000,
+  "quality_method": "rotate by angle, rotate back by negative angle, center-crop to original size",
+  "original_width": 225,
+  "original_height": 225,
+  "methods": [
+    {
+      "method": "nearest",
+      "rotated_width": 308,
+      "rotated_height": 308,
+      "rotation_ms": 4.288874000000,
+      "inverse_rotation_ms": 7.960245000000,
+      "roundtrip_mse": 366.945224691358,
+      "roundtrip_psnr_db": 22.484791205660
+    },
+    {
+      "method": "bilinear",
+      "rotated_width": 308,
+      "rotated_height": 308,
+      "rotation_ms": 5.986338000000,
+      "inverse_rotation_ms": 11.163474000000,
+      "roundtrip_mse": 487.166004938272,
+      "roundtrip_psnr_db": 21.254033858055
+    },
+    {
+      "method": "bicubic",
+      "rotated_width": 308,
+      "rotated_height": 308,
+      "rotation_ms": 15.921146000000,
+      "inverse_rotation_ms": 29.605078000000,
+      "roundtrip_mse": 498.163101234568,
+      "roundtrip_psnr_db": 21.157088045154
+    }
+  ]
+}

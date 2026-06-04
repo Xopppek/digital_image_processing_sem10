@@ -1,0 +1,36 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/lab03/input/arch.jpg",
+  "angle_degrees": 30.000000000000,
+  "quality_method": "rotate by angle, rotate back by negative angle, center-crop to original size",
+  "original_width": 3000,
+  "original_height": 2250,
+  "methods": [
+    {
+      "method": "nearest",
+      "rotated_width": 3724,
+      "rotated_height": 3449,
+      "rotation_ms": 569.458728000000,
+      "inverse_rotation_ms": 1071.460482000000,
+      "roundtrip_mse": 26.466218962963,
+      "roundtrip_psnr_db": 33.903884596426
+    },
+    {
+      "method": "bilinear",
+      "rotated_width": 3724,
+      "rotated_height": 3449,
+      "rotation_ms": 823.296241000000,
+      "inverse_rotation_ms": 1527.642366000000,
+      "roundtrip_mse": 17.249570074074,
+      "roundtrip_psnr_db": 35.763020856200
+    },
+    {
+      "method": "bicubic",
+      "rotated_width": 3724,
+      "rotated_height": 3449,
+      "rotation_ms": 2132.988564000000,
+      "inverse_rotation_ms": 4034.085406000000,
+      "roundtrip_mse": 15.280078370370,
+      "roundtrip_psnr_db": 36.289547791589
+    }
+  ]
+}
