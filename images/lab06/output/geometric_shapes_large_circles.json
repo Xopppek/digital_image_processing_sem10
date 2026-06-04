@@ -9,10 +9,9 @@
   "selected_count": 2,
   "criteria": {
     "min_area_exclusive": 30,
-    "max_aspect_deviation": 0.250000000000,
-    "min_fill_ratio": 0.450000000000,
-    "max_fill_ratio": 0.900000000000,
-    "max_moment_deviation": 0.250000000000
+    "roundness_kr2_formula": "2 * pi * (mu20 + mu02) / S^2",
+    "target_roundness_kr2": 1.000000000000,
+    "max_roundness_deviation": 0.020000000000
   },
   "selected_components": [
     {
@@ -22,11 +21,8 @@
       "min_y": 4,
       "max_x": 12,
       "max_y": 12,
-      "bounding_width": 9.000000000000,
-      "bounding_height": 9.000000000000,
-      "aspect_deviation": 0.000000000000,
-      "fill_ratio": 0.604938271605,
-      "moment_deviation": 0.000000000000,
+      "roundness_kr2": 1.004890944588,
+      "roundness_deviation": 0.004890944588,
       "raw_moments": {
         "m00": 49.000000000000,
         "m10": 392.000000000000,
@@ -49,11 +45,8 @@
       "min_y": 17,
       "max_x": 36,
       "max_y": 27,
-      "bounding_width": 11.000000000000,
-      "bounding_height": 11.000000000000,
-      "aspect_deviation": 0.000000000000,
-      "fill_ratio": 0.669421487603,
-      "moment_deviation": 0.000000000000,
+      "roundness_kr2": 1.007454800054,
+      "roundness_deviation": 0.007454800054,
       "raw_moments": {
         "m00": 81.000000000000,
         "m10": 2511.000000000000,

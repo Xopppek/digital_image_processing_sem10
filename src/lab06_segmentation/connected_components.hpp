@@ -34,11 +34,8 @@ struct ConnectedComponentsResult {
 
 struct CircleLikeComponent {
     ConnectedComponent component;
-    double bounding_width{0.0};
-    double bounding_height{0.0};
-    double aspect_deviation{0.0};
-    double fill_ratio{0.0};
-    double moment_deviation{0.0};
+    double roundness_kr2{0.0};
+    double roundness_deviation{0.0};
 };
 
 [[nodiscard]] ConnectedComponentsResult label_4_connected_components(const GrayImage& binary_image);
@@ -47,10 +44,7 @@ struct CircleLikeComponent {
 [[nodiscard]] std::vector<CircleLikeComponent> find_large_circle_like_components(
     const ConnectedComponentsResult& result,
     std::size_t min_area,
-    double max_aspect_deviation,
-    double min_fill_ratio,
-    double max_fill_ratio,
-    double max_moment_deviation
+    double max_roundness_deviation
 );
 [[nodiscard]] RgbImage render_selected_components_color(
     const ConnectedComponentsResult& result,
