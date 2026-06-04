@@ -1,6 +1,7 @@
 #include "app/cli.hpp"
 
 #include "core/image_io.hpp"
+#include "homework/tiff_reader.hpp"
 #include "lab01_analysis/cooccurrence.hpp"
 #include "lab01_analysis/noise.hpp"
 #include "lab01_analysis/quality.hpp"
@@ -57,12 +58,14 @@ void print_general_help(std::ostream& output) {
            << "  dip lab6 otsu --input <path> --output <path> [--metrics-output <path>]\n"
            << "  dip lab6 components --input <path> --output <path> [--metrics-output <path>]\n"
            << "  dip lab6 circles --input <path> --output <path> [--metrics-output <path>]\n"
+           << "  dip homework read-tiff --input <path> --output <path>\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
            << "  dip lab4 --help\n"
            << "  dip lab5 --help\n"
-           << "  dip lab6 --help\n";
+           << "  dip lab6 --help\n"
+           << "  dip homework --help\n";
 }
 
 void print_lab_help(std::ostream& output, const std::string& lab) {
@@ -154,6 +157,14 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
            << "The " << lab << " command is reserved for a future laboratory task.\n";
 }
 
+void print_homework_help(std::ostream& output) {
+    output << "Usage:\n"
+           << "  dip homework read-tiff --input <path> --output <path>\n"
+           << "  dip homework --help\n\n"
+           << "Available commands:\n"
+           << "  read-tiff  Read an uncompressed 8-bit grayscale TIFF file without image libraries.\n";
+}
+
 bool is_lab_command(const std::string& command) {
     return command == "lab1" ||
            command == "lab2" ||
@@ -189,6 +200,52 @@ int run_info(const std::vector<std::string>& args) {
               << "pixel_type: uint8\n";
 
     return 0;
+}
+
+int run_homework_read_tiff(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for homework read-tiff: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    write_gray_image(output_path, homework::read_uncompressed_tiff_gray_image(input_path));
+    return 0;
+}
+
+int run_homework(const std::vector<std::string>& args) {
+    if (args.size() == 1 && args.front() == "--help") {
+        print_homework_help(std::cout);
+        return 0;
+    }
+
+    if (!args.empty() && args.front() == "read-tiff") {
+        return run_homework_read_tiff({args.begin() + 1, args.end()});
+    }
+
+    std::cerr << "Unknown homework command.\n";
+    print_homework_help(std::cerr);
+    return 2;
 }
 
 bool parse_int(const std::string& text, int& value) {
@@ -2828,6 +2885,10 @@ int run_cli(const int argc, char** argv) {
 
         if (command == "info") {
             return run_info(args);
+        }
+
+        if (command == "homework") {
+            return run_homework(args);
         }
 
         if (command == "lab1") {
