@@ -10,6 +10,8 @@
 namespace dip::lab06 {
 namespace {
 
+constexpr double pi = 3.141592653589793238462643383279502884;
+
 std::size_t index_of(const std::size_t x, const std::size_t y, const std::size_t width) {
     return y * width + x;
 }
@@ -180,10 +182,7 @@ RgbImage render_component_labels_color(const ConnectedComponentsResult& result) 
 std::vector<CircleLikeComponent> find_large_circle_like_components(
     const ConnectedComponentsResult& result,
     const std::size_t min_area,
-    const double max_aspect_deviation,
-    const double min_fill_ratio,
-    const double max_fill_ratio,
-    const double max_moment_deviation
+    const double max_roundness_deviation
 ) {
     std::vector<CircleLikeComponent> selected;
 
@@ -192,31 +191,17 @@ std::vector<CircleLikeComponent> find_large_circle_like_components(
             continue;
         }
 
-        const double bounding_width = static_cast<double>(component.max_x - component.min_x + 1);
-        const double bounding_height = static_cast<double>(component.max_y - component.min_y + 1);
-        const double larger_side = std::max(bounding_width, bounding_height);
-        const double aspect_deviation = std::abs(bounding_width - bounding_height) / larger_side;
-        const double fill_ratio = static_cast<double>(component.area) / (bounding_width * bounding_height);
-        const double moment_sum = component.mu20 + component.mu02;
-        if (moment_sum <= 0.0) {
-            continue;
-        }
-
-        const double moment_deviation = std::abs(component.mu20 - component.mu02) / moment_sum;
-        if (aspect_deviation > max_aspect_deviation ||
-            fill_ratio < min_fill_ratio ||
-            fill_ratio > max_fill_ratio ||
-            moment_deviation > max_moment_deviation) {
+        const double area = static_cast<double>(component.area);
+        const double roundness_kr2 = 2.0 * pi * (component.mu20 + component.mu02) / (area * area);
+        const double roundness_deviation = std::abs(roundness_kr2 - 1.0);
+        if (roundness_deviation > max_roundness_deviation) {
             continue;
         }
 
         selected.push_back({
             component,
-            bounding_width,
-            bounding_height,
-            aspect_deviation,
-            fill_ratio,
-            moment_deviation,
+            roundness_kr2,
+            roundness_deviation,
         });
     }
 

@@ -973,10 +973,7 @@ void write_circle_like_components_json(
     const lab06::ConnectedComponentsResult& result,
     const std::vector<lab06::CircleLikeComponent>& selected_components,
     const std::size_t min_area,
-    const double max_aspect_deviation,
-    const double min_fill_ratio,
-    const double max_fill_ratio,
-    const double max_moment_deviation
+    const double max_roundness_deviation
 ) {
     std::ofstream output(output_path);
     if (!output) {
@@ -995,10 +992,9 @@ void write_circle_like_components_json(
            << "  \"selected_count\": " << selected_components.size() << ",\n"
            << "  \"criteria\": {\n"
            << "    \"min_area_exclusive\": " << min_area << ",\n"
-           << "    \"max_aspect_deviation\": " << max_aspect_deviation << ",\n"
-           << "    \"min_fill_ratio\": " << min_fill_ratio << ",\n"
-           << "    \"max_fill_ratio\": " << max_fill_ratio << ",\n"
-           << "    \"max_moment_deviation\": " << max_moment_deviation << "\n"
+           << "    \"roundness_kr2_formula\": \"2 * pi * (mu20 + mu02) / S^2\",\n"
+           << "    \"target_roundness_kr2\": 1.000000000000,\n"
+           << "    \"max_roundness_deviation\": " << max_roundness_deviation << "\n"
            << "  },\n"
            << "  \"selected_components\": [\n";
 
@@ -1012,11 +1008,8 @@ void write_circle_like_components_json(
                << "      \"min_y\": " << component.min_y << ",\n"
                << "      \"max_x\": " << component.max_x << ",\n"
                << "      \"max_y\": " << component.max_y << ",\n"
-               << "      \"bounding_width\": " << selected.bounding_width << ",\n"
-               << "      \"bounding_height\": " << selected.bounding_height << ",\n"
-               << "      \"aspect_deviation\": " << selected.aspect_deviation << ",\n"
-               << "      \"fill_ratio\": " << selected.fill_ratio << ",\n"
-               << "      \"moment_deviation\": " << selected.moment_deviation << ",\n"
+               << "      \"roundness_kr2\": " << selected.roundness_kr2 << ",\n"
+               << "      \"roundness_deviation\": " << selected.roundness_deviation << ",\n"
                << "      \"raw_moments\": {\n"
                << "        \"m00\": " << component.m00 << ",\n"
                << "        \"m10\": " << component.m10 << ",\n"
@@ -2763,20 +2756,14 @@ int run_lab6_circles(const std::vector<std::string>& args) {
     }
 
     constexpr std::size_t min_area = 30;
-    constexpr double max_aspect_deviation = 0.25;
-    constexpr double min_fill_ratio = 0.45;
-    constexpr double max_fill_ratio = 0.90;
-    constexpr double max_moment_deviation = 0.25;
+    constexpr double max_roundness_deviation = 0.02;
 
     const GrayImage binary = read_gray_image(input_path);
     const lab06::ConnectedComponentsResult result = lab06::label_4_connected_components(binary);
     const std::vector<lab06::CircleLikeComponent> selected = lab06::find_large_circle_like_components(
         result,
         min_area,
-        max_aspect_deviation,
-        min_fill_ratio,
-        max_fill_ratio,
-        max_moment_deviation
+        max_roundness_deviation
     );
     const RgbImage highlighted = lab06::render_selected_components_color(result, selected);
 
@@ -2789,10 +2776,7 @@ int run_lab6_circles(const std::vector<std::string>& args) {
             result,
             selected,
             min_area,
-            max_aspect_deviation,
-            min_fill_ratio,
-            max_fill_ratio,
-            max_moment_deviation
+            max_roundness_deviation
         );
     }
 
