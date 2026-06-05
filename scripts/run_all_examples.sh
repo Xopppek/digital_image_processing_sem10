@@ -685,13 +685,10 @@ done < <(find "${homework_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
 
-for image_stem in 3 paper_note; do
-    homework_restore_input_path="${homework_input_dir}/${image_stem}.tif"
-    if [[ ! -f "${homework_restore_input_path}" ]]; then
-        continue
-    fi
-
+while IFS= read -r -d '' homework_restore_input_path; do
     found_any=1
+    image_name="$(basename "${homework_restore_input_path}")"
+    image_stem="${image_name%.*}"
     blocks_path="${homework_output_dir}/${image_stem}_blocks.png"
     blocks_metrics_path="${homework_output_dir}/${image_stem}_blocks.json"
     blurred_path="${homework_output_dir}/${image_stem}_blurred.png"
@@ -719,7 +716,9 @@ for image_stem in 3 paper_note; do
     echo "wrote ${restored_path#${repo_root}/}"
     echo "wrote ${restore_blocks_path#${repo_root}/}"
     echo "wrote ${restore_metrics_path#${repo_root}/}"
-done
+done < <(find "${homework_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
 
 if [[ -d "${homework_tiff_reader_input_dir}" ]]; then
     mkdir -p "${homework_tiff_reader_output_dir}"
