@@ -1,6 +1,9 @@
 #include "app/cli.hpp"
 
 #include "core/image_io.hpp"
+#include "homework/block_classifier.hpp"
+#include "homework/halftone_pipeline.hpp"
+#include "homework/tiff_reader.hpp"
 #include "lab01_analysis/cooccurrence.hpp"
 #include "lab01_analysis/noise.hpp"
 #include "lab01_analysis/quality.hpp"
@@ -57,12 +60,16 @@ void print_general_help(std::ostream& output) {
            << "  dip lab6 otsu --input <path> --output <path> [--metrics-output <path>]\n"
            << "  dip lab6 components --input <path> --output <path> [--metrics-output <path>]\n"
            << "  dip lab6 circles --input <path> --output <path> [--metrics-output <path>]\n"
+           << "  dip homework read-tiff --input <path> --output <path>\n"
+           << "  dip homework classify-blocks --input <path> --output <path> [--block-size <pixels>] [--min-region-blocks <count>] [--min-neighbors <count>] [--metrics-output <path>]\n"
+           << "  dip homework restore-halftone --input <path> --output <path> [--blurred-output <path>] [--blocks-output <path>] [--metrics-output <path>]\n"
            << "  dip lab1 --help\n"
            << "  dip lab2 --help\n"
            << "  dip lab3 --help\n"
            << "  dip lab4 --help\n"
            << "  dip lab5 --help\n"
-           << "  dip lab6 --help\n";
+           << "  dip lab6 --help\n"
+           << "  dip homework --help\n";
 }
 
 void print_lab_help(std::ostream& output, const std::string& lab) {
@@ -154,6 +161,18 @@ void print_lab_help(std::ostream& output, const std::string& lab) {
            << "The " << lab << " command is reserved for a future laboratory task.\n";
 }
 
+void print_homework_help(std::ostream& output) {
+    output << "Usage:\n"
+           << "  dip homework read-tiff --input <path> --output <path>\n"
+           << "  dip homework classify-blocks --input <path> --output <path> [--block-size <pixels>] [--min-region-blocks <count>] [--min-neighbors <count>] [--metrics-output <path>]\n"
+           << "  dip homework restore-halftone --input <path> --output <path> [--blurred-output <path>] [--blocks-output <path>] [--metrics-output <path>]\n"
+           << "  dip homework --help\n\n"
+           << "Available commands:\n"
+           << "  read-tiff        Read an uncompressed 8-bit grayscale TIFF file without image libraries.\n"
+           << "  classify-blocks  Split a TIFF page into blocks and highlight image blocks.\n"
+           << "  restore-halftone Restore halftone image regions while leaving background and text unchanged.\n";
+}
+
 bool is_lab_command(const std::string& command) {
     return command == "lab1" ||
            command == "lab2" ||
@@ -189,6 +208,448 @@ int run_info(const std::vector<std::string>& args) {
               << "pixel_type: uint8\n";
 
     return 0;
+}
+
+int run_homework_read_tiff(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for homework read-tiff: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    write_rgb_image(output_path, homework::read_uncompressed_tiff_rgb_image(input_path));
+    return 0;
+}
+
+bool parse_positive_size(const std::string& text, std::size_t& value) {
+    if (text.empty() || text.front() == '-') {
+        return false;
+    }
+
+    try {
+        std::size_t parsed = 0;
+        const unsigned long long parsed_value = std::stoull(text, &parsed);
+        if (parsed != text.size() || parsed_value == 0) {
+            return false;
+        }
+
+        value = static_cast<std::size_t>(parsed_value);
+        return static_cast<unsigned long long>(value) == parsed_value;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+bool parse_positive_double_option(const std::string& text, double& value) {
+    try {
+        std::size_t parsed = 0;
+        value = std::stod(text, &parsed);
+        return parsed == text.size() && value > 0.0;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+bool parse_nonnegative_double_option(const std::string& text, double& value) {
+    try {
+        std::size_t parsed = 0;
+        value = std::stod(text, &parsed);
+        return parsed == text.size() && value >= 0.0;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+std::size_t block_class_index(const homework::BlockClass block_class) noexcept {
+    switch (block_class) {
+        case homework::BlockClass::background:
+            return 0;
+        case homework::BlockClass::text:
+            return 1;
+        case homework::BlockClass::image:
+            return 2;
+    }
+
+    return 0;
+}
+
+void write_block_classification_json(
+    const std::string& output_path,
+    const std::string& input_path,
+    const std::string& overlay_output_path,
+    const homework::BlockClassification& classification
+) {
+    std::ofstream output(output_path);
+    if (!output) {
+        throw std::runtime_error("failed to open output file: " + output_path);
+    }
+
+    std::array<std::size_t, 3> counts{0, 0, 0};
+    for (const homework::BlockInfo& block : classification.blocks) {
+        ++counts[block_class_index(block.block_class)];
+    }
+
+    output << std::fixed << std::setprecision(10);
+    output << "{\n"
+           << "  \"input\": \"" << input_path << "\",\n"
+           << "  \"overlay_output\": \"" << overlay_output_path << "\",\n"
+           << "  \"width\": " << classification.image_width << ",\n"
+           << "  \"height\": " << classification.image_height << ",\n"
+           << "  \"block_size\": " << classification.block_size << ",\n"
+           << "  \"grid_width\": " << classification.grid_width << ",\n"
+           << "  \"grid_height\": " << classification.grid_height << ",\n"
+           << "  \"method\": \"block histogram heuristic\",\n"
+           << "  \"postprocessing\": {\n"
+           << "    \"connectivity\": 4,\n"
+           << "    \"min_image_region_blocks\": " << classification.min_image_region_blocks << ",\n"
+           << "    \"min_image_neighbors\": " << classification.min_image_neighbors << "\n"
+           << "  },\n"
+           << "  \"legend\": {\n"
+           << "    \"text\": \"unchanged\",\n"
+           << "    \"image\": \"red overlay\",\n"
+           << "    \"background\": \"unchanged\"\n"
+           << "  },\n"
+           << "  \"counts\": {\n"
+           << "    \"background\": " << counts[block_class_index(homework::BlockClass::background)] << ",\n"
+           << "    \"text\": " << counts[block_class_index(homework::BlockClass::text)] << ",\n"
+           << "    \"image\": " << counts[block_class_index(homework::BlockClass::image)] << "\n"
+           << "  },\n"
+           << "  \"image_regions\": [\n";
+
+    for (std::size_t index = 0; index < classification.image_regions.size(); ++index) {
+        const homework::ImageRegionInfo& region = classification.image_regions[index];
+        output << "    {\n"
+               << "      \"id\": " << region.id << ",\n"
+               << "      \"block_count\": " << region.block_count << ",\n"
+               << "      \"x\": " << region.x << ",\n"
+               << "      \"y\": " << region.y << ",\n"
+               << "      \"width\": " << region.width << ",\n"
+               << "      \"height\": " << region.height << "\n"
+               << "    }";
+
+        if (index + 1 != classification.image_regions.size()) {
+            output << ",";
+        }
+        output << "\n";
+    }
+
+    output << "  ],\n"
+           << "  \"blocks\": [\n";
+
+    for (std::size_t index = 0; index < classification.blocks.size(); ++index) {
+        const homework::BlockInfo& block = classification.blocks[index];
+        output << "    {\n"
+               << "      \"x\": " << block.x << ",\n"
+               << "      \"y\": " << block.y << ",\n"
+               << "      \"width\": " << block.width << ",\n"
+               << "      \"height\": " << block.height << ",\n"
+               << "      \"class\": \"" << homework::block_class_name(block.block_class) << "\",\n"
+               << "      \"image_region_id\": " << block.image_region_id << ",\n"
+               << "      \"image_neighbor_count\": " << block.image_neighbor_count << ",\n"
+               << "      \"white_ratio\": " << block.white_ratio << ",\n"
+               << "      \"dark_ratio\": " << block.dark_ratio << ",\n"
+               << "      \"nonwhite_ratio\": " << block.nonwhite_ratio << ",\n"
+               << "      \"midtone_ratio\": " << block.midtone_ratio << ",\n"
+               << "      \"normalized_white_ratio\": " << block.normalized_white_ratio << ",\n"
+               << "      \"normalized_dark_ratio\": " << block.normalized_dark_ratio << ",\n"
+               << "      \"normalized_midtone_ratio\": " << block.normalized_midtone_ratio << ",\n"
+               << "      \"text_projection_score\": " << block.text_projection_score << ",\n"
+               << "      \"mean\": " << block.mean << ",\n"
+               << "      \"variance\": " << block.variance << "\n"
+               << "    }";
+
+        if (index + 1 != classification.blocks.size()) {
+            output << ",";
+        }
+        output << "\n";
+    }
+
+    output << "  ]\n"
+           << "}\n";
+}
+
+void write_halftone_pipeline_json(
+    const std::string& output_path,
+    const std::string& input_path,
+    const std::string& restored_output_path,
+    const std::string& blurred_output_path,
+    const std::string& blocks_output_path,
+    const homework::HalftonePipelineOptions& options,
+    const homework::HalftonePipelineResult& result
+) {
+    std::ofstream output(output_path);
+    if (!output) {
+        throw std::runtime_error("failed to open output file: " + output_path);
+    }
+
+    output << std::fixed << std::setprecision(10);
+    output << "{\n"
+           << "  \"input\": \"" << input_path << "\",\n"
+           << "  \"restored_output\": \"" << restored_output_path << "\",\n";
+
+    if (!blurred_output_path.empty()) {
+        output << "  \"blurred_output\": \"" << blurred_output_path << "\",\n";
+    }
+
+    if (!blocks_output_path.empty()) {
+        output << "  \"blocks_output\": \"" << blocks_output_path << "\",\n";
+    }
+
+    output << "  \"width\": " << result.restored.width() << ",\n"
+           << "  \"height\": " << result.restored.height() << ",\n"
+           << "  \"options\": {\n"
+           << "    \"block_size\": " << options.block_size << ",\n"
+           << "    \"min_region_blocks\": " << options.min_region_blocks << ",\n"
+           << "    \"min_neighbors\": " << options.min_neighbors << ",\n"
+           << "    \"rectangle_padding_fraction\": " << options.rectangle_padding_fraction << ",\n"
+           << "    \"gaussian_kernel_size\": " << options.gaussian_kernel_size << ",\n"
+           << "    \"gaussian_sigma\": " << options.gaussian_sigma << ",\n"
+           << "    \"sharpen_amount\": " << options.sharpen_amount << "\n"
+           << "  },\n"
+           << "  \"processing_mask\": \"image rectangles built without text-like boundary blocks\",\n"
+           << "  \"processed_region_count\": " << result.processed_region_count << ",\n"
+           << "  \"image_region_count\": " << result.classification.image_regions.size() << ",\n"
+           << "  \"image_regions\": [\n";
+
+    for (std::size_t index = 0; index < result.classification.image_regions.size(); ++index) {
+        const homework::ImageRegionInfo& region = result.classification.image_regions[index];
+        output << "    {\n"
+               << "      \"id\": " << region.id << ",\n"
+               << "      \"block_count\": " << region.block_count << ",\n"
+               << "      \"x\": " << region.x << ",\n"
+               << "      \"y\": " << region.y << ",\n"
+               << "      \"width\": " << region.width << ",\n"
+               << "      \"height\": " << region.height << "\n"
+               << "    }";
+
+        if (index + 1 != result.classification.image_regions.size()) {
+            output << ",";
+        }
+        output << "\n";
+    }
+
+    output << "  ]\n"
+           << "}\n";
+}
+
+int run_homework_classify_blocks(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string metrics_output_path;
+    std::size_t block_size = 56;
+    std::size_t min_region_blocks = 12;
+    std::size_t min_neighbors = 1;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--block-size" && i + 1 < args.size()) {
+            if (!parse_positive_size(args[i + 1], block_size)) {
+                std::cerr << "Invalid block size: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--min-region-blocks" && i + 1 < args.size()) {
+            if (!parse_positive_size(args[i + 1], min_region_blocks)) {
+                std::cerr << "Invalid minimum region block count: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--min-neighbors" && i + 1 < args.size()) {
+            if (!parse_positive_size(args[i + 1], min_neighbors)) {
+                std::cerr << "Invalid minimum neighbor count: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--metrics-output" && i + 1 < args.size()) {
+            metrics_output_path = args[i + 1];
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for homework classify-blocks: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    const GrayImage image = homework::read_uncompressed_tiff_gray_image(input_path);
+    homework::BlockClassification classification = homework::classify_blocks(image, block_size);
+    homework::merge_image_blocks(classification, min_region_blocks, min_neighbors);
+    write_rgb_image(output_path, homework::render_block_classification_overlay(image, classification));
+
+    if (!metrics_output_path.empty()) {
+        write_block_classification_json(metrics_output_path, input_path, output_path, classification);
+    }
+
+    return 0;
+}
+
+int run_homework_restore_halftone(const std::vector<std::string>& args) {
+    std::string input_path;
+    std::string output_path;
+    std::string blurred_output_path;
+    std::string blocks_output_path;
+    std::string metrics_output_path;
+    homework::HalftonePipelineOptions options;
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        if (args[i] == "--input" && i + 1 < args.size()) {
+            input_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--output" && i + 1 < args.size()) {
+            output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--blurred-output" && i + 1 < args.size()) {
+            blurred_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--blocks-output" && i + 1 < args.size()) {
+            blocks_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--metrics-output" && i + 1 < args.size()) {
+            metrics_output_path = args[i + 1];
+            ++i;
+        } else if (args[i] == "--block-size" && i + 1 < args.size()) {
+            if (!parse_positive_size(args[i + 1], options.block_size)) {
+                std::cerr << "Invalid block size: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--min-region-blocks" && i + 1 < args.size()) {
+            if (!parse_positive_size(args[i + 1], options.min_region_blocks)) {
+                std::cerr << "Invalid minimum region block count: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--min-neighbors" && i + 1 < args.size()) {
+            if (!parse_positive_size(args[i + 1], options.min_neighbors)) {
+                std::cerr << "Invalid minimum neighbor count: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--rectangle-padding-fraction" && i + 1 < args.size()) {
+            if (!parse_nonnegative_double_option(args[i + 1], options.rectangle_padding_fraction)) {
+                std::cerr << "Invalid rectangle padding fraction: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--gaussian-kernel-size" && i + 1 < args.size()) {
+            if (!parse_positive_size(args[i + 1], options.gaussian_kernel_size)) {
+                std::cerr << "Invalid Gaussian kernel size: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--gaussian-sigma" && i + 1 < args.size()) {
+            if (!parse_positive_double_option(args[i + 1], options.gaussian_sigma)) {
+                std::cerr << "Invalid Gaussian sigma: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else if (args[i] == "--sharpen-amount" && i + 1 < args.size()) {
+            if (!parse_nonnegative_double_option(args[i + 1], options.sharpen_amount)) {
+                std::cerr << "Invalid sharpen amount: " << args[i + 1] << '\n';
+                return 2;
+            }
+            ++i;
+        } else {
+            std::cerr << "Unknown or incomplete option for homework restore-halftone: " << args[i] << '\n';
+            return 2;
+        }
+    }
+
+    if (input_path.empty()) {
+        std::cerr << "Missing required option: --input <path>\n";
+        return 2;
+    }
+
+    if (output_path.empty()) {
+        std::cerr << "Missing required option: --output <path>\n";
+        return 2;
+    }
+
+    const GrayImage image = homework::read_uncompressed_tiff_gray_image(input_path);
+    const homework::HalftonePipelineResult result = homework::restore_halftone_scan(image, options);
+    write_gray_image(output_path, result.restored);
+
+    if (!blurred_output_path.empty()) {
+        write_gray_image(blurred_output_path, result.blurred);
+    }
+
+    if (!blocks_output_path.empty()) {
+        write_rgb_image(blocks_output_path, homework::render_halftone_processing_overlay(
+            image,
+            result.classification,
+            options
+        ));
+    }
+
+    if (!metrics_output_path.empty()) {
+        write_halftone_pipeline_json(
+            metrics_output_path,
+            input_path,
+            output_path,
+            blurred_output_path,
+            blocks_output_path,
+            options,
+            result
+        );
+    }
+
+    return 0;
+}
+
+int run_homework(const std::vector<std::string>& args) {
+    if (args.size() == 1 && args.front() == "--help") {
+        print_homework_help(std::cout);
+        return 0;
+    }
+
+    if (!args.empty() && args.front() == "read-tiff") {
+        return run_homework_read_tiff({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "classify-blocks") {
+        return run_homework_classify_blocks({args.begin() + 1, args.end()});
+    }
+
+    if (!args.empty() && args.front() == "restore-halftone") {
+        return run_homework_restore_halftone({args.begin() + 1, args.end()});
+    }
+
+    std::cerr << "Unknown homework command.\n";
+    print_homework_help(std::cerr);
+    return 2;
 }
 
 bool parse_int(const std::string& text, int& value) {
@@ -2828,6 +3289,10 @@ int run_cli(const int argc, char** argv) {
 
         if (command == "info") {
             return run_info(args);
+        }
+
+        if (command == "homework") {
+            return run_homework(args);
         }
 
         if (command == "lab1") {

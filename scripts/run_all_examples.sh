@@ -17,9 +17,10 @@ Labs:
   lab4, lab04, 4
   lab5, lab05, 5
   lab6, lab06, 6
+  homework, hw
   all
 
-With no lab argument, all implemented labs are run.
+With no lab argument, all implemented labs and homework examples are run.
 EOF
 }
 
@@ -45,6 +46,9 @@ normalize_lab() {
             ;;
         6|lab6|lab06)
             echo "lab06"
+            ;;
+        homework|hw)
+            echo "homework"
             ;;
         *)
             echo "Unknown lab selector: $1" >&2
@@ -90,6 +94,7 @@ select_all_labs() {
     selected_labs["lab04"]=1
     selected_labs["lab05"]=1
     selected_labs["lab06"]=1
+    selected_labs["homework"]=1
 }
 
 if [[ "${#selected_lab_args[@]}" -eq 0 ]]; then
@@ -656,6 +661,83 @@ while IFS= read -r -d '' image_path; do
 done < <(find "${lab06_components_input_dir}" -maxdepth 1 -type f \
     \( -iname '*.bmp' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.pgm' -o -iname '*.tif' -o -iname '*.tiff' \) \
     -print0 | sort -z)
+fi
+
+if should_run "homework"; then
+homework_input_dir="${repo_root}/images/homework/input"
+homework_output_dir="${repo_root}/images/homework/output"
+homework_tiff_reader_input_dir="${homework_input_dir}/tif_reader"
+homework_tiff_reader_output_dir="${homework_output_dir}/tif_reader"
+mkdir -p "${homework_output_dir}"
+
+while IFS= read -r -d '' image_path; do
+    found_any=1
+    image_name="$(basename "${image_path}")"
+    image_stem="${image_name%.*}"
+    read_path="${homework_output_dir}/${image_stem}.png"
+
+    "${binary}" homework read-tiff \
+        --input "${image_path}" \
+        --output "${read_path}"
+
+    echo "wrote ${read_path#${repo_root}/}"
+done < <(find "${homework_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+
+while IFS= read -r -d '' homework_restore_input_path; do
+    found_any=1
+    image_name="$(basename "${homework_restore_input_path}")"
+    image_stem="${image_name%.*}"
+    blocks_path="${homework_output_dir}/${image_stem}_blocks.png"
+    blocks_metrics_path="${homework_output_dir}/${image_stem}_blocks.json"
+    blurred_path="${homework_output_dir}/${image_stem}_blurred.png"
+    restored_path="${homework_output_dir}/${image_stem}_restored.png"
+    restore_blocks_path="${homework_output_dir}/${image_stem}_restore_blocks.png"
+    restore_metrics_path="${homework_output_dir}/${image_stem}_restore.json"
+
+    "${binary}" homework classify-blocks \
+        --input "${homework_restore_input_path}" \
+        --output "${blocks_path}" \
+        --block-size 56 \
+        --metrics-output "${blocks_metrics_path}"
+
+    echo "wrote ${blocks_path#${repo_root}/}"
+    echo "wrote ${blocks_metrics_path#${repo_root}/}"
+
+    "${binary}" homework restore-halftone \
+        --input "${homework_restore_input_path}" \
+        --output "${restored_path}" \
+        --blurred-output "${blurred_path}" \
+        --blocks-output "${restore_blocks_path}" \
+        --metrics-output "${restore_metrics_path}"
+
+    echo "wrote ${blurred_path#${repo_root}/}"
+    echo "wrote ${restored_path#${repo_root}/}"
+    echo "wrote ${restore_blocks_path#${repo_root}/}"
+    echo "wrote ${restore_metrics_path#${repo_root}/}"
+done < <(find "${homework_input_dir}" -maxdepth 1 -type f \
+    \( -iname '*.tif' -o -iname '*.tiff' \) \
+    -print0 | sort -z)
+
+if [[ -d "${homework_tiff_reader_input_dir}" ]]; then
+    mkdir -p "${homework_tiff_reader_output_dir}"
+
+    while IFS= read -r -d '' image_path; do
+        found_any=1
+        image_name="$(basename "${image_path}")"
+        image_stem="${image_name%.*}"
+        read_path="${homework_tiff_reader_output_dir}/${image_stem}.png"
+
+        "${binary}" homework read-tiff \
+            --input "${image_path}" \
+            --output "${read_path}"
+
+        echo "wrote ${read_path#${repo_root}/}"
+    done < <(find "${homework_tiff_reader_input_dir}" -maxdepth 1 -type f \
+        \( -iname '*.tif' -o -iname '*.tiff' \) \
+        -print0 | sort -z)
+fi
 fi
 
 if [[ "${found_any}" -eq 0 ]]; then

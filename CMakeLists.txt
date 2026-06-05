@@ -16,6 +16,9 @@ add_executable(dip
     src/app/cli.cpp
     src/core/gray_image.cpp
     src/core/image_io.cpp
+    src/homework/block_classifier.cpp
+    src/homework/halftone_pipeline.cpp
+    src/homework/tiff_reader.cpp
     src/lab01_analysis/cooccurrence.cpp
     src/lab01_analysis/histogram.cpp
     src/lab01_analysis/noise.cpp
