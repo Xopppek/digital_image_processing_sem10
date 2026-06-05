@@ -26,6 +26,10 @@ struct BlockInfo {
     double dark_ratio{0.0};
     double nonwhite_ratio{0.0};
     double midtone_ratio{0.0};
+    double normalized_white_ratio{0.0};
+    double normalized_dark_ratio{0.0};
+    double normalized_midtone_ratio{0.0};
+    double text_projection_score{0.0};
     double mean{0.0};
     double variance{0.0};
 };

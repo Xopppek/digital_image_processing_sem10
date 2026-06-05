@@ -27,12 +27,12 @@ struct TiffEntry {
 struct TiffMetadata {
     std::uint32_t width{0};
     std::uint32_t height{0};
-    std::uint16_t bits_per_sample{8};
+    std::vector<std::uint16_t> bits_per_sample{8};
     std::uint16_t compression{1};
     std::uint16_t photometric_interpretation{1};
     std::uint16_t samples_per_pixel{1};
     std::uint16_t planar_configuration{1};
-    std::uint16_t sample_format{1};
+    std::vector<std::uint16_t> sample_format{1};
     std::uint32_t rows_per_strip{0};
     std::vector<std::uint32_t> strip_offsets;
     std::vector<std::uint32_t> strip_byte_counts;
@@ -211,7 +211,10 @@ void apply_entry(
             metadata.height = read_single_value(bytes, entry, byte_order);
             break;
         case tag_bits_per_sample:
-            metadata.bits_per_sample = static_cast<std::uint16_t>(read_single_value(bytes, entry, byte_order));
+            metadata.bits_per_sample.clear();
+            for (const std::uint32_t value : read_value_vector(bytes, entry, byte_order)) {
+                metadata.bits_per_sample.push_back(static_cast<std::uint16_t>(value));
+            }
             break;
         case tag_compression:
             metadata.compression = static_cast<std::uint16_t>(read_single_value(bytes, entry, byte_order));
@@ -237,7 +240,10 @@ void apply_entry(
                 static_cast<std::uint16_t>(read_single_value(bytes, entry, byte_order));
             break;
         case tag_sample_format:
-            metadata.sample_format = static_cast<std::uint16_t>(read_single_value(bytes, entry, byte_order));
+            metadata.sample_format.clear();
+            for (const std::uint32_t value : read_value_vector(bytes, entry, byte_order)) {
+                metadata.sample_format.push_back(static_cast<std::uint16_t>(value));
+            }
             break;
         default:
             break;
@@ -284,6 +290,16 @@ ByteOrder read_byte_order(const std::vector<std::uint8_t>& bytes) {
     throw std::runtime_error("unsupported TIFF byte order");
 }
 
+bool is_rgb_tiff(const TiffMetadata& metadata) {
+    return metadata.photometric_interpretation == 2 && metadata.samples_per_pixel == 3;
+}
+
+bool is_grayscale_tiff(const TiffMetadata& metadata) {
+    return
+        metadata.samples_per_pixel == 1 &&
+        (metadata.photometric_interpretation == 0 || metadata.photometric_interpretation == 1);
+}
+
 void validate_metadata(TiffMetadata& metadata) {
     if (metadata.width == 0 || metadata.height == 0) {
         throw std::runtime_error("TIFF image dimensions are missing or invalid");
@@ -293,28 +309,52 @@ void validate_metadata(TiffMetadata& metadata) {
         throw std::runtime_error("TIFF image dimensions are too large");
     }
 
-    if (metadata.bits_per_sample != 8) {
-        throw std::runtime_error("only 8-bit grayscale TIFF files are supported");
+    if (metadata.bits_per_sample.empty()) {
+        metadata.bits_per_sample.assign(metadata.samples_per_pixel, 8);
+    }
+
+    if (metadata.bits_per_sample.size() == 1 && metadata.samples_per_pixel > 1) {
+        metadata.bits_per_sample.assign(metadata.samples_per_pixel, metadata.bits_per_sample.front());
+    }
+
+    if (metadata.bits_per_sample.size() != metadata.samples_per_pixel) {
+        throw std::runtime_error("TIFF BitsPerSample count does not match SamplesPerPixel");
+    }
+
+    for (const std::uint16_t bits_per_sample : metadata.bits_per_sample) {
+        if (bits_per_sample != 8) {
+            throw std::runtime_error("only 8-bit TIFF samples are supported");
+        }
     }
 
     if (metadata.compression != 1) {
         throw std::runtime_error("only uncompressed TIFF files are supported");
     }
 
-    if (metadata.photometric_interpretation != 0 && metadata.photometric_interpretation != 1) {
-        throw std::runtime_error("only grayscale TIFF photometric interpretations are supported");
-    }
-
-    if (metadata.samples_per_pixel != 1) {
-        throw std::runtime_error("only single-sample grayscale TIFF files are supported");
+    if (!is_grayscale_tiff(metadata) && !is_rgb_tiff(metadata)) {
+        throw std::runtime_error("only grayscale and RGB TIFF files are supported");
     }
 
     if (metadata.planar_configuration != 1) {
         throw std::runtime_error("unsupported TIFF planar configuration");
     }
 
-    if (metadata.sample_format != 1) {
-        throw std::runtime_error("only unsigned integer TIFF samples are supported");
+    if (metadata.sample_format.empty()) {
+        metadata.sample_format.assign(metadata.samples_per_pixel, 1);
+    }
+
+    if (metadata.sample_format.size() == 1 && metadata.samples_per_pixel > 1) {
+        metadata.sample_format.assign(metadata.samples_per_pixel, metadata.sample_format.front());
+    }
+
+    if (metadata.sample_format.size() != metadata.samples_per_pixel) {
+        throw std::runtime_error("TIFF SampleFormat count does not match SamplesPerPixel");
+    }
+
+    for (const std::uint16_t sample_format : metadata.sample_format) {
+        if (sample_format != 1) {
+            throw std::runtime_error("only unsigned integer TIFF samples are supported");
+        }
     }
 
     if (metadata.rows_per_strip == 0) {
@@ -330,9 +370,16 @@ void validate_metadata(TiffMetadata& metadata) {
     }
 }
 
-} // namespace
+struct DecodedTiff {
+    TiffMetadata metadata;
+    std::vector<std::uint8_t> pixels;
+};
 
-GrayImage read_uncompressed_tiff_gray_image(const std::string& path) {
+std::size_t samples_per_output_pixel(const TiffMetadata& metadata) {
+    return is_rgb_tiff(metadata) ? 3 : 1;
+}
+
+DecodedTiff read_uncompressed_tiff_pixels(const std::string& path) {
     const std::vector<std::uint8_t> bytes = read_file_bytes(path);
     const ByteOrder byte_order = read_byte_order(bytes);
 
@@ -345,32 +392,98 @@ GrayImage read_uncompressed_tiff_gray_image(const std::string& path) {
 
     const std::size_t width = static_cast<std::size_t>(metadata.width);
     const std::size_t height = static_cast<std::size_t>(metadata.height);
-    GrayImage image(width, height);
-
+    const std::size_t sample_count = samples_per_output_pixel(metadata);
     std::size_t output_offset = 0;
-    const std::size_t expected_pixels = width * height;
+    const std::size_t expected_bytes = width * height * sample_count;
+    std::vector<std::uint8_t> pixels(expected_bytes);
+
     for (std::size_t strip_index = 0; strip_index < metadata.strip_offsets.size(); ++strip_index) {
         const std::size_t strip_offset = metadata.strip_offsets[strip_index];
         const std::size_t byte_count = metadata.strip_byte_counts[strip_index];
         require_range(bytes, strip_offset, byte_count);
 
-        const std::size_t pixels_to_copy = std::min(byte_count, expected_pixels - output_offset);
-        for (std::size_t index = 0; index < pixels_to_copy; ++index) {
-            const std::uint8_t value = bytes[strip_offset + index];
-            image.pixels()[output_offset + index] =
-                metadata.photometric_interpretation == 0
-                    ? static_cast<GrayImage::Pixel>(255 - value)
-                    : static_cast<GrayImage::Pixel>(value);
-        }
+        const std::size_t bytes_to_copy = std::min(byte_count, expected_bytes - output_offset);
+        std::copy(
+            bytes.begin() + static_cast<std::ptrdiff_t>(strip_offset),
+            bytes.begin() + static_cast<std::ptrdiff_t>(strip_offset + bytes_to_copy),
+            pixels.begin() + static_cast<std::ptrdiff_t>(output_offset)
+        );
 
-        output_offset += pixels_to_copy;
-        if (output_offset == expected_pixels) {
+        output_offset += bytes_to_copy;
+        if (output_offset == expected_bytes) {
             break;
         }
     }
 
-    if (output_offset != expected_pixels) {
+    if (output_offset != expected_bytes) {
         throw std::runtime_error("TIFF strips do not contain enough image data");
+    }
+
+    return {metadata, std::move(pixels)};
+}
+
+GrayImage::Pixel rgb_to_gray(const std::uint8_t red, const std::uint8_t green, const std::uint8_t blue) {
+    const int value = 299 * static_cast<int>(red) + 587 * static_cast<int>(green) + 114 * static_cast<int>(blue);
+    return static_cast<GrayImage::Pixel>((value + 500) / 1000);
+}
+
+} // namespace
+
+GrayImage read_uncompressed_tiff_gray_image(const std::string& path) {
+    const DecodedTiff decoded = read_uncompressed_tiff_pixels(path);
+    const std::size_t width = static_cast<std::size_t>(decoded.metadata.width);
+    const std::size_t height = static_cast<std::size_t>(decoded.metadata.height);
+    GrayImage image(width, height);
+
+    if (is_rgb_tiff(decoded.metadata)) {
+        for (std::size_t index = 0; index < image.size(); ++index) {
+            const std::size_t offset = index * 3;
+            image.pixels()[index] = rgb_to_gray(
+                decoded.pixels[offset],
+                decoded.pixels[offset + 1],
+                decoded.pixels[offset + 2]
+            );
+        }
+
+        return image;
+    }
+
+    for (std::size_t index = 0; index < image.size(); ++index) {
+        const std::uint8_t value = decoded.pixels[index];
+        image.pixels()[index] =
+            decoded.metadata.photometric_interpretation == 0
+                ? static_cast<GrayImage::Pixel>(255 - value)
+                : static_cast<GrayImage::Pixel>(value);
+    }
+
+    return image;
+}
+
+RgbImage read_uncompressed_tiff_rgb_image(const std::string& path) {
+    const DecodedTiff decoded = read_uncompressed_tiff_pixels(path);
+    RgbImage image;
+    image.width = static_cast<std::size_t>(decoded.metadata.width);
+    image.height = static_cast<std::size_t>(decoded.metadata.height);
+    image.pixels.resize(image.width * image.height);
+
+    if (is_rgb_tiff(decoded.metadata)) {
+        for (std::size_t index = 0; index < image.pixels.size(); ++index) {
+            const std::size_t offset = index * 3;
+            image.pixels[index] = {
+                decoded.pixels[offset],
+                decoded.pixels[offset + 1],
+                decoded.pixels[offset + 2],
+            };
+        }
+
+        return image;
+    }
+
+    for (std::size_t index = 0; index < image.pixels.size(); ++index) {
+        const std::uint8_t value = decoded.metadata.photometric_interpretation == 0
+            ? static_cast<std::uint8_t>(255 - decoded.pixels[index])
+            : decoded.pixels[index];
+        image.pixels[index] = {value, value, value};
     }
 
     return image;

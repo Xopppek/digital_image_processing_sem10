@@ -1,0 +1,38 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/homework/input/paper_note.tif",
+  "restored_output": "/home/roman/Study/digital_image_processing_sem10/images/homework/output/paper_note_restored.png",
+  "blurred_output": "/home/roman/Study/digital_image_processing_sem10/images/homework/output/paper_note_blurred.png",
+  "blocks_output": "/home/roman/Study/digital_image_processing_sem10/images/homework/output/paper_note_restore_blocks.png",
+  "width": 1448,
+  "height": 1086,
+  "options": {
+    "block_size": 56,
+    "min_region_blocks": 12,
+    "min_neighbors": 1,
+    "rectangle_padding_fraction": 0.2000000000,
+    "gaussian_kernel_size": 11,
+    "gaussian_sigma": 1.8000000000,
+    "sharpen_amount": 0.3500000000
+  },
+  "processing_mask": "image rectangles built without text-like boundary blocks",
+  "processed_region_count": 2,
+  "image_region_count": 2,
+  "image_regions": [
+    {
+      "id": 0,
+      "block_count": 69,
+      "x": 560,
+      "y": 112,
+      "width": 392,
+      "height": 560
+    },
+    {
+      "id": 1,
+      "block_count": 42,
+      "x": 560,
+      "y": 728,
+      "width": 392,
+      "height": 336
+    }
+  ]
+}

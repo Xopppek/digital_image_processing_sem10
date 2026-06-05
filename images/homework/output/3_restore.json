@@ -1,0 +1,54 @@
+{
+  "input": "/home/roman/Study/digital_image_processing_sem10/images/homework/input/3.tif",
+  "restored_output": "/home/roman/Study/digital_image_processing_sem10/images/homework/output/3_restored.png",
+  "blurred_output": "/home/roman/Study/digital_image_processing_sem10/images/homework/output/3_blurred.png",
+  "blocks_output": "/home/roman/Study/digital_image_processing_sem10/images/homework/output/3_restore_blocks.png",
+  "width": 2480,
+  "height": 3507,
+  "options": {
+    "block_size": 56,
+    "min_region_blocks": 12,
+    "min_neighbors": 1,
+    "rectangle_padding_fraction": 0.2000000000,
+    "gaussian_kernel_size": 11,
+    "gaussian_sigma": 1.8000000000,
+    "sharpen_amount": 0.3500000000
+  },
+  "processing_mask": "image rectangles built without text-like boundary blocks",
+  "processed_region_count": 4,
+  "image_region_count": 4,
+  "image_regions": [
+    {
+      "id": 0,
+      "block_count": 430,
+      "x": 672,
+      "y": 448,
+      "width": 1512,
+      "height": 896
+    },
+    {
+      "id": 1,
+      "block_count": 17,
+      "x": 840,
+      "y": 2352,
+      "width": 224,
+      "height": 448
+    },
+    {
+      "id": 2,
+      "block_count": 17,
+      "x": 1400,
+      "y": 2352,
+      "width": 168,
+      "height": 392
+    },
+    {
+      "id": 3,
+      "block_count": 22,
+      "x": 1848,
+      "y": 2352,
+      "width": 280,
+      "height": 392
+    }
+  ]
+}

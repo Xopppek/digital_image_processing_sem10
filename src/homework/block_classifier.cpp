@@ -14,11 +14,15 @@ namespace {
 constexpr GrayImage::Pixel white_threshold = 245;
 constexpr GrayImage::Pixel dark_threshold = 128;
 constexpr GrayImage::Pixel midtone_low = 64;
+constexpr GrayImage::Pixel normalized_white_threshold = 205;
+constexpr GrayImage::Pixel normalized_dark_threshold = 85;
+constexpr GrayImage::Pixel normalized_midtone_low = 80;
+constexpr GrayImage::Pixel normalized_midtone_high = 205;
 constexpr double background_max_nonwhite_ratio = 0.015;
 constexpr double text_min_nonwhite_ratio = 0.015;
 constexpr double text_min_white_ratio = 0.70;
 constexpr double text_max_midtone_ratio = 0.20;
-constexpr double text_max_dark_ratio = 0.14;
+constexpr double text_max_dark_ratio = 0.30;
 constexpr double image_max_white_ratio = 0.70;
 constexpr double image_min_nonwhite_ratio = 0.45;
 constexpr double image_min_midtone_ratio = 0.20;
@@ -42,17 +46,44 @@ BlockClass classify_by_features(
     const double white_ratio,
     const double dark_ratio,
     const double nonwhite_ratio,
-    const double midtone_ratio
+    const double midtone_ratio,
+    const double normalized_white_ratio,
+    const double normalized_dark_ratio,
+    const double normalized_midtone_ratio,
+    const double text_projection_score
 ) {
     if (nonwhite_ratio < background_max_nonwhite_ratio) {
         return BlockClass::background;
     }
 
-    if (
+    const bool raw_text_like =
         white_ratio >= text_min_white_ratio &&
         nonwhite_ratio >= text_min_nonwhite_ratio &&
         midtone_ratio < text_max_midtone_ratio &&
-        dark_ratio < text_max_dark_ratio
+        dark_ratio < text_max_dark_ratio;
+
+    const bool normalized_text_like =
+        normalized_white_ratio >= 0.45 &&
+        normalized_dark_ratio >= 0.02 &&
+        normalized_dark_ratio <= 0.45 &&
+        normalized_midtone_ratio <= 0.45 &&
+        text_projection_score >= 0.22;
+
+    const bool dense_newspaper_text_like =
+        white_ratio >= 0.50 &&
+        white_ratio <= 0.72 &&
+        nonwhite_ratio <= 0.55 &&
+        dark_ratio <= 0.35 &&
+        midtone_ratio <= 0.30 &&
+        normalized_white_ratio >= 0.60 &&
+        normalized_dark_ratio <= 0.34 &&
+        normalized_midtone_ratio <= 0.18 &&
+        text_projection_score >= 0.06;
+
+    if (
+        raw_text_like ||
+        normalized_text_like ||
+        dense_newspaper_text_like
     ) {
         return BlockClass::text;
     }
@@ -67,6 +98,51 @@ BlockClass classify_by_features(
     }
 
     return BlockClass::background;
+}
+
+GrayImage::Pixel normalize_pixel_for_block(
+    const GrayImage::Pixel pixel,
+    const GrayImage::Pixel min_pixel,
+    const GrayImage::Pixel max_pixel
+) {
+    if (max_pixel <= min_pixel) {
+        return pixel;
+    }
+
+    const int range = static_cast<int>(max_pixel) - static_cast<int>(min_pixel);
+    const int shifted = static_cast<int>(pixel) - static_cast<int>(min_pixel);
+    return static_cast<GrayImage::Pixel>((shifted * 255 + range / 2) / range);
+}
+
+double row_projection_score(const std::vector<std::size_t>& row_dark_counts, const std::size_t block_width) {
+    if (row_dark_counts.empty() || block_width == 0) {
+        return 0.0;
+    }
+
+    std::size_t active_rows = 0;
+    double sum = 0.0;
+    double sum_squares = 0.0;
+    const double active_threshold = std::max(1.0, static_cast<double>(block_width) * 0.08);
+
+    for (const std::size_t count : row_dark_counts) {
+        const double ratio = static_cast<double>(count) / static_cast<double>(block_width);
+        sum += ratio;
+        sum_squares += ratio * ratio;
+        if (static_cast<double>(count) >= active_threshold) {
+            ++active_rows;
+        }
+    }
+
+    const double row_count = static_cast<double>(row_dark_counts.size());
+    const double mean = sum / row_count;
+    const double variance = std::max(0.0, sum_squares / row_count - mean * mean);
+    const double active_ratio = static_cast<double>(active_rows) / row_count;
+
+    if (active_ratio < 0.08 || active_ratio > 0.90) {
+        return 0.0;
+    }
+
+    return std::sqrt(variance) * (1.0 - std::abs(active_ratio - 0.45));
 }
 
 std::size_t grid_index(const std::size_t column, const std::size_t row, const std::size_t grid_width) {
@@ -159,6 +235,8 @@ BlockClassification classify_blocks(const GrayImage& image, const std::size_t bl
             std::size_t dark_count = 0;
             std::size_t nonwhite_count = 0;
             std::size_t midtone_count = 0;
+            GrayImage::Pixel min_pixel = 255;
+            GrayImage::Pixel max_pixel = 0;
 
             for (std::size_t dy = 0; dy < block.height; ++dy) {
                 for (std::size_t dx = 0; dx < block.width; ++dx) {
@@ -166,6 +244,8 @@ BlockClassification classify_blocks(const GrayImage& image, const std::size_t bl
                     const double value = static_cast<double>(pixel);
                     sum += value;
                     sum_squares += value * value;
+                    min_pixel = std::min(min_pixel, pixel);
+                    max_pixel = std::max(max_pixel, pixel);
 
                     if (pixel >= white_threshold) {
                         ++white_count;
@@ -183,17 +263,53 @@ BlockClassification classify_blocks(const GrayImage& image, const std::size_t bl
                 }
             }
 
+            std::size_t normalized_white_count = 0;
+            std::size_t normalized_dark_count = 0;
+            std::size_t normalized_midtone_count = 0;
+            std::vector<std::size_t> row_dark_counts(block.height, 0);
+
+            for (std::size_t dy = 0; dy < block.height; ++dy) {
+                for (std::size_t dx = 0; dx < block.width; ++dx) {
+                    const GrayImage::Pixel normalized = normalize_pixel_for_block(
+                        image.at(x + dx, y + dy),
+                        min_pixel,
+                        max_pixel
+                    );
+
+                    if (normalized >= normalized_white_threshold) {
+                        ++normalized_white_count;
+                    }
+
+                    if (normalized <= normalized_dark_threshold) {
+                        ++normalized_dark_count;
+                        ++row_dark_counts[dy];
+                    }
+
+                    if (normalized >= normalized_midtone_low && normalized < normalized_midtone_high) {
+                        ++normalized_midtone_count;
+                    }
+                }
+            }
+
             block.white_ratio = static_cast<double>(white_count) / total_pixels;
             block.dark_ratio = static_cast<double>(dark_count) / total_pixels;
             block.nonwhite_ratio = static_cast<double>(nonwhite_count) / total_pixels;
             block.midtone_ratio = static_cast<double>(midtone_count) / total_pixels;
+            block.normalized_white_ratio = static_cast<double>(normalized_white_count) / total_pixels;
+            block.normalized_dark_ratio = static_cast<double>(normalized_dark_count) / total_pixels;
+            block.normalized_midtone_ratio = static_cast<double>(normalized_midtone_count) / total_pixels;
+            block.text_projection_score = row_projection_score(row_dark_counts, block.width);
             block.mean = sum / total_pixels;
             block.variance = sum_squares / total_pixels - block.mean * block.mean;
             block.block_class = classify_by_features(
                 block.white_ratio,
                 block.dark_ratio,
                 block.nonwhite_ratio,
-                block.midtone_ratio
+                block.midtone_ratio,
+                block.normalized_white_ratio,
+                block.normalized_dark_ratio,
+                block.normalized_midtone_ratio,
+                block.text_projection_score
             );
 
             result.blocks.push_back(block);
@@ -279,7 +395,6 @@ void merge_image_blocks(
             for (const std::size_t index : component) {
                 if (classification.blocks[index].image_neighbor_count >= min_neighbor_count) {
                     has_supported_block = true;
-                    break;
                 }
             }
 
@@ -344,15 +459,7 @@ RgbImage render_block_classification_overlay(
     }
 
     for (const BlockInfo& block : classification.blocks) {
-        RgbPixel overlay{0, 0, 0};
-        double alpha = 0.0;
-        if (block.block_class == BlockClass::image) {
-            overlay = {255, 0, 0};
-            alpha = overlay_alpha;
-        } else if (block.block_class == BlockClass::text) {
-            overlay = {0, 180, 0};
-            alpha = overlay_alpha;
-        } else {
+        if (block.block_class != BlockClass::image) {
             continue;
         }
 
@@ -360,7 +467,7 @@ RgbImage render_block_classification_overlay(
             for (std::size_t dx = 0; dx < block.width; ++dx) {
                 const std::size_t x = block.x + dx;
                 const std::size_t y = block.y + dy;
-                result.pixels[y * image.width() + x] = blend(image.at(x, y), overlay, alpha);
+                result.pixels[y * image.width() + x] = blend(image.at(x, y), {255, 0, 0}, overlay_alpha);
             }
         }
     }
